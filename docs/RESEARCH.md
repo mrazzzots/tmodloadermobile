@@ -116,3 +116,18 @@ Collectible ALC выгружается.
   (~5 мс/хук на эмуляторе). Collectible ALC не выгружается (Mono).
 - Осталось проверить на реальном arm64: там дополнительно нужен arm64-хелпер MonoMod
   (`libgcc_s.so.1` → наша библиотека совместимости).
+
+## ✅ Итог шага 1.1: MonoMod работает на реальном Android arm64
+
+vivo V2403A (Snapdragon 8 Gen 3), Android 16, .NET 10.0.15 (Mono), MonoMod.RuntimeDetour 25.3.2:
+`HostTriple = (Arm64, Linux, Mono)`, **11/11 обязательных тестов PASS**, 300 хуков ≈ 1.46 с
+(≈ 4.9 мс/хук; для Calamity с сотнями хуков это секунды при загрузке — приемлемо).
+
+Необходимый набор обходов (всё это понадобится при запуске настоящего tModLoader):
+1. Подмена `PlatformDetection.OS` → Linux до первого обращения к MonoMod.
+2. `Switches.HelperDropPath` → папка кэша приложения.
+3. Библиотека совместимости `libmm_gcc_s_shim.so` (SONAME `libgcc_s.so.1`, LLVM libunwind),
+   загруженная по абсолютному пути до создания платформы MonoMod.
+4. Патч `MonoMod.Core.dll` (Cecil): `__errno_location` → `__errno`, `sysconf(30)` → `sysconf(0x27)`.
+   Для tML патч применяется к его собственной копии `MonoMod.Core.dll` при загрузке.
+5. Collectible ALC на Mono не выгружается → смена модов = перезапуск приложения.
