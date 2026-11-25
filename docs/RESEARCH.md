@@ -131,3 +131,21 @@ vivo V2403A (Snapdragon 8 Gen 3), Android 16, .NET 10.0.15 (Mono), MonoMod.Runti
 4. Патч `MonoMod.Core.dll` (Cecil): `__errno_location` → `__errno`, `sysconf(30)` → `sysconf(0x27)`.
    Для tML патч применяется к его собственной копии `MonoMod.Core.dll` при загрузке.
 5. Collectible ALC на Mono не выгружается → смена модов = перезапуск приложения.
+
+## Шаг 1.3: FNA на Android (эмулятор CI, x86_64, SwiftShader GLES 3.0)
+
+Работает: запуск через SDLActivity → `libmain.so` (`SDL_main`) → `[UnmanagedCallersOnly]` C#;
+.NET и Java используют один экземпляр `libSDL2.so` (`SDL_AndroidGetJNIEnv` ≠ 0);
+FNA3D OpenGL ES 3.0, MojoShader `glsles`; ~60 FPS; FAudio играет звук.
+
+Самопроверка (render target → read-back):
+
+| тест | эмулятор |
+|---|---|
+| Clear | ✅ |
+| BasicEffect, user primitives (цвет / текстура) | ✅ / ✅ |
+| VertexBuffer+IndexBuffer → `DrawIndexedPrimitives` (static / dynamic) | ❌ |
+| SpriteBatch (внутри — индексная отрисовка) | ❌ |
+
+Гипотеза: GL-транслятор эмулятора заявляет `OES_draw_elements_base_vertex`, но не выполняет
+`glDrawRangeElementsBaseVertex`. Нужна проверка на реальном Adreno.
