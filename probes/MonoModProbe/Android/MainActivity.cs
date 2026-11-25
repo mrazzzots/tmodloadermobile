@@ -12,6 +12,7 @@ namespace TMLDroid.ProbeApp;
 
 [Activity(
     Label = "MonoMod Probe",
+    Theme = "@android:style/Theme.DeviceDefault.Light.NoActionBar",
     MainLauncher = true,
     Exported = true,
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.KeyboardHidden)]
@@ -35,15 +36,20 @@ public class MainActivity : Activity
         logPath = Path.Combine(dir, $"probe-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
 
         var root = new LinearLayout(this) { Orientation = Orientation.Vertical };
-        root.SetPadding(24, 64, 24, 24);
+        // Android 15+ draws apps edge-to-edge: keep content clear of the status/navigation bars.
+        root.SetOnApplyWindowInsetsListener(new SystemBarsPadding(24));
+        root.RequestApplyInsets();
+
+        var title = new TextView(this) { Text = "MonoMod Probe", TextSize = 20f };
+        title.SetPadding(0, 0, 0, 16);
+        root.AddView(title);
 
         var buttons = new LinearLayout(this) { Orientation = Orientation.Horizontal };
         runFix = new Button(this) { Text = "Run all (fix)" };
         runRaw = new Button(this) { Text = "Run as is" };
         share = new Button(this) { Text = "Share log" };
-        buttons.AddView(runFix);
-        buttons.AddView(runRaw);
-        buttons.AddView(share);
+        foreach (var b in new[] { runFix, runRaw, share })
+            buttons.AddView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f));
 
         logView = new TextView(this) { TextSize = 11f, Typeface = Android.Graphics.Typeface.Monospace };
         logView.SetTextIsSelectable(true);
@@ -164,5 +170,28 @@ public class MainActivity : Activity
         send.PutExtra(Intent.ExtraSubject, "TMLDroid MonoMod probe log");
         send.PutExtra(Intent.ExtraText, text);
         StartActivity(Intent.CreateChooser(send, "Share probe log"));
+    }
+}
+
+/// <summary>Pads a view by the system bar insets (works on API 29+).</summary>
+sealed class SystemBarsPadding(int extra) : Java.Lang.Object, View.IOnApplyWindowInsetsListener
+{
+    public WindowInsets OnApplyWindowInsets(View v, WindowInsets insets)
+    {
+        int left, top, right, bottom;
+        if (OperatingSystem.IsAndroidVersionAtLeast(30))
+        {
+            var bars = insets.GetInsets(WindowInsets.Type.SystemBars() | WindowInsets.Type.DisplayCutout());
+            (left, top, right, bottom) = (bars.Left, bars.Top, bars.Right, bars.Bottom);
+        }
+        else
+        {
+#pragma warning disable CA1422 // obsolete on 30+, only used below 30
+            (left, top, right, bottom) = (insets.SystemWindowInsetLeft, insets.SystemWindowInsetTop,
+                insets.SystemWindowInsetRight, insets.SystemWindowInsetBottom);
+#pragma warning restore CA1422
+        }
+        v.SetPadding(left + extra, top + extra, right + extra, bottom + extra);
+        return insets;
     }
 }
