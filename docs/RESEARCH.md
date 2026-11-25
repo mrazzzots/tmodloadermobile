@@ -106,3 +106,13 @@ Collectible ALC выгружается.
 - Решение: `tools/MonoModAndroidPatcher` (Mono.Cecil) при сборке APK переписывает P/Invoke
   `MonoMod.Core.Interop.Unix.__errno_location` → entry point `__errno` (имя в bionic).
   Для настоящего tModLoader этот же патч нужно применять в рантайме к его `MonoMod.Core.dll`.
+
+### Третий этап: эмулятор в CI (x86_64, Android 11, Mono)
+
+- `mprotect` падал с EINVAL: MonoMod вызывает `sysconf(30)` (glibc `_SC_PAGESIZE`), а в bionic
+  30 = `_SC_XOPEN_ENH_I18N`, правильный номер — `0x27`. Патчер теперь переписывает и это.
+- С двумя патчами (`__errno`, `sysconf`) на эмуляторе проходят **все 11 обязательных тестов**:
+  детуры, IL-хуки, исключения, HFA/retbuf, цепочки, хук в загруженной «мод-сборке», 300 хуков
+  (~5 мс/хук на эмуляторе). Collectible ALC не выгружается (Mono).
+- Осталось проверить на реальном arm64: там дополнительно нужен arm64-хелпер MonoMod
+  (`libgcc_s.so.1` → наша библиотека совместимости).
