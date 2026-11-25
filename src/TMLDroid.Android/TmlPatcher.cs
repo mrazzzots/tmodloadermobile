@@ -13,7 +13,7 @@ namespace TMLDroid;
 /// </summary>
 public static class TmlPatcher
 {
-    public const int PatchVersion = 4;
+    public const int PatchVersion = 5;
 
     public sealed record Report(string File, int OsCalls, bool InstallVerifier);
 
@@ -46,6 +46,11 @@ public static class TmlPatcher
             var isOSPlatformName = module.ImportReference(typeof(Compat.OS).GetMethod(nameof(Compat.OS.IsOSPlatformName))!);
             var isLinux = module.ImportReference(typeof(Compat.OS).GetMethod(nameof(Compat.OS.IsLinux))!);
             var getEntryAssembly = module.ImportReference(typeof(Compat.Runtime).GetMethod(nameof(Compat.Runtime.GetEntryAssembly))!);
+            var newHook = module.ImportReference(typeof(Compat.Hooks).GetMethod(nameof(Compat.Hooks.NewHook))!);
+            var setFg = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.SetForegroundColor))!);
+            var setBg = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.SetBackgroundColor))!);
+            var resetColor = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.ResetColor))!);
+            int hooks = 0;
 
             foreach (var type in module.GetTypes())
             foreach (var method in type.Methods)
@@ -53,6 +58,18 @@ public static class TmlPatcher
                 if (!method.HasBody) continue;
                 foreach (var ins in method.Body.Instructions)
                 {
+                    // new Hook(MethodBase, Delegate) in tML's own code -> Compat.Hooks.NewHook (mods' hooks stay strict)
+                    if (ins.OpCode.Code == Code.Newobj && ins.Operand is MethodReference ctor
+                        && ctor.DeclaringType.FullName == "MonoMod.RuntimeDetour.Hook" && ctor.Parameters.Count == 2
+                        && ctor.Parameters[0].ParameterType.FullName == "System.Reflection.MethodBase"
+                        && ctor.Parameters[1].ParameterType.FullName == "System.Delegate"
+                        && type.FullName != "Terraria.ModLoader.MonoModHooks")
+                    {
+                        ins.OpCode = OpCodes.Call;
+                        ins.Operand = newHook;
+                        hooks++;
+                        continue;
+                    }
                     if (ins.OpCode.Code is not (Code.Call or Code.Callvirt) || ins.Operand is not MethodReference callee) continue;
                     var declaring = callee.DeclaringType.FullName;
                     MethodReference? replacement = (declaring, callee.Name, callee.Parameters.Count) switch
@@ -61,6 +78,9 @@ public static class TmlPatcher
                         ("System.OperatingSystem", "IsOSPlatform", 1) => isOSPlatformName,
                         ("System.OperatingSystem", "IsLinux", 0) => isLinux,
                         ("System.Reflection.Assembly", "GetEntryAssembly", 0) => getEntryAssembly,
+                        ("System.Console", "set_ForegroundColor", 1) => setFg,
+                        ("System.Console", "set_BackgroundColor", 1) => setBg,
+                        ("System.Console", "ResetColor", 0) => resetColor,
                         _ => null,
                     };
                     if (replacement == null) continue;
@@ -89,7 +109,7 @@ public static class TmlPatcher
             asm.Write(path);
         }
 
-        log($"patched {Path.GetFileName(path)}: {osCalls} calls rewritten (OS checks, GetEntryAssembly){(installPatched ? ", InstallVerifier.Startup replaced" : "")}");
+        log($"patched {Path.GetFileName(path)}: {osCalls} calls rewritten (OS checks, GetEntryAssembly, console colours), {hooks} tML hooks made optional{(installPatched ? ", InstallVerifier.Startup replaced" : "")}");
         return new(path, osCalls, installPatched);
     }
 }

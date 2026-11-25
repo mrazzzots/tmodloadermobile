@@ -84,6 +84,15 @@ public static unsafe class GameEntry
             .GetMethod("Main", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
             ?? throw new MissingMethodException("Terraria.MonoLaunch", "Main");
 
+        // Mono may run beforefieldinit static constructors when a method that touches the type is
+        // JIT-compiled (CoreCLR defers them). ModCompile's cctor needs Program.SavePath(Shared), which
+        // tML sets only later from -tmlsavedirectory; set the very same values up front.
+        var program = tml.GetType("Terraria.Program", throwOnError: true)!;
+        foreach (var name in new[] { "SavePath", "SavePathShared" })
+            program.GetProperty(name, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)?
+                .GetSetMethod(nonPublic: true)?.Invoke(null, [Paths.Saves]);
+        HostLog.Info("Program.SavePath/SavePathShared preset to " + Paths.Saves);
+
         string[] args = ["-tmlsavedirectory", Paths.Saves, "-savedirectory", Paths.Saves];
         HostLog.Info("MonoLaunch.Main " + string.Join(' ', args));
         main.Invoke(null, [args]);

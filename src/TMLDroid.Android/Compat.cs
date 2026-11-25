@@ -33,6 +33,40 @@ public static class Runtime
         ?? (tml ??= AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "tModLoader"));
 }
 
+/// <summary>
+/// tModLoader's own (non-mod) hooks on .NET internals: StackTrace prettifying, assembly-name
+/// redirects, web request logging. Several target CoreCLR-only internals that Mono's CoreLib does
+/// not have (GetMethod returns null). They are not needed to play, so a missing target is skipped.
+/// </summary>
+public static class Hooks
+{
+    public static MonoMod.RuntimeDetour.Hook? NewHook(MethodBase? source, Delegate target)
+    {
+        if (source == null)
+        {
+            HostLog.Info($"tML hook skipped: target method not present on this runtime (hook {target.Method.DeclaringType?.Name}.{target.Method.Name})");
+            return null;
+        }
+        try
+        {
+            return new MonoMod.RuntimeDetour.Hook(source, target);
+        }
+        catch (Exception e)
+        {
+            HostLog.Info($"tML hook skipped: {source.DeclaringType?.FullName}.{source.Name}: {e.GetType().Name}: {e.Message}");
+            return null;
+        }
+    }
+}
+
+/// <summary>Console colours are not supported on Android (PlatformNotSupportedException).</summary>
+public static class ConsoleCompat
+{
+    public static void SetForegroundColor(ConsoleColor color) { try { Console.ForegroundColor = color; } catch (PlatformNotSupportedException) { } }
+    public static void SetBackgroundColor(ConsoleColor color) { try { Console.BackgroundColor = color; } catch (PlatformNotSupportedException) { } }
+    public static void ResetColor() { try { Console.ResetColor(); } catch (PlatformNotSupportedException) { } }
+}
+
 /// <summary>Replaces Terraria.ModLoader.Engine.InstallVerifier.Startup().</summary>
 public static class Install
 {
