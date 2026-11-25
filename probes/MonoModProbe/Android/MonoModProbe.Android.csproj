@@ -27,6 +27,9 @@
     <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
     <AndroidStripILAfterAOT>false</AndroidStripILAfterAOT>
+
+    <!-- MonoMod refuses to build for *-android by default. Testing exactly that is the point of this probe. -->
+    <MonoMod_CheckTargetRuntime>false</MonoMod_CheckTargetRuntime>
   </PropertyGroup>
 
   <ItemGroup>

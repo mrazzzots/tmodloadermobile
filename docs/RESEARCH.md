@@ -53,6 +53,18 @@
 - `PlatformDetection` кэширует ОС в приватных статических полях `os`, `arch`,
   `platInitState`. Есть и публичный `PlatformTriple.SetPlatformTriple(...)`.
 
+- В NuGet-пакете MonoMod есть MSBuild-проверка: сборка под `net10.0-android` падает с ошибкой
+  «MonoMod.Core and MonoMod.RuntimeDetour do not support the net10.0-android runtime».
+  Отключается свойством `MonoMod_CheckTargetRuntime=false`.
+- Хуки на generic-методы MonoMod не поддерживает ни на одной платформе
+  («generic hooks are not supported»), это общее ограничение tML, а не Android.
+
+### Результаты CI (desktop, MonoMod 25.3.2)
+
+Linux x64 и Linux arm64 (CoreCLR): 11/11 обязательных тестов проходят — детуры, IL-хуки,
+исключения через хук, HFA/retbuf-структуры, загрузка сборки и хук в ней, 300 хуков ≈0.4 с.
+Collectible ALC выгружается.
+
 ### Гипотеза обхода (проверяет `probes/MonoModProbe`)
 
 1. До первого обращения к MonoMod выставить через рефлексию

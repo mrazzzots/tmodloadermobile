@@ -35,7 +35,7 @@ public static class Probes
         P("hook_exception_propagates", HookExceptionPropagates),
         P("hook_struct_hfa_vector2", HookStructHfa),
         P("hook_struct_retbuf_32b", HookStructRetBuf),
-        P("hook_generic_valuetype", HookGeneric),
+        P("hook_generic_valuetype", HookGeneric, informational: true),
         P("hook_chain_two_hooks", HookChain),
         P("modlike_assembly_load_and_hook", ModLikeAssembly),
         P("alc_collectible_unload", AlcUnload, informational: true),
@@ -177,10 +177,19 @@ public static class Probes
 
     static string HookGeneric()
     {
+        // MonoMod rejects generic hook sources on every platform (PC tML has the same limit).
+        // Informational: tells us whether this runtime behaves like desktop.
         var gm = M(nameof(Targets.GenericName)).MakeGenericMethod(typeof(int));
-        using var h = new Hook(gm, new Func<Func<int, string>, int, string>((orig, v) => orig(v) + "!"));
-        AssertEqual("Int32!", Targets.GenericName(42), "generic<int>");
-        return "ok";
+        try
+        {
+            using var h = new Hook(gm, new Func<Func<int, string>, int, string>((orig, v) => orig(v) + "!"));
+            AssertEqual("Int32!", Targets.GenericName(42), "generic<int>");
+            return "generic hook worked";
+        }
+        catch (ArgumentException e) when (e.Message.Contains("generic", StringComparison.OrdinalIgnoreCase))
+        {
+            return "not supported by MonoMod (expected, same as desktop): " + e.Message;
+        }
     }
 
     static string HookChain()
