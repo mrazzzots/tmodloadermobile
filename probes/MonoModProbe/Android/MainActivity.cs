@@ -1,6 +1,7 @@
 using System.Text;
 using Android.App;
 using Android.OS;
+using Android.Runtime;
 using Android.Widget;
 using Android.Content;
 using Android.Content.PM;
@@ -12,6 +13,7 @@ namespace TMLDroid.ProbeApp;
 
 [Activity(
     Label = "MonoMod Probe",
+    Name = "io.github.tmldroid.monomodprobe.MainActivity",
     Theme = "@android:style/Theme.DeviceDefault.Light.NoActionBar",
     MainLauncher = true,
     Exported = true,
@@ -64,6 +66,8 @@ public class MainActivity : Activity
         runRaw.Click += (_, _) => Start(withFix: false);
         share.Click += (_, _) => Share();
 
+        InstallCrashLogging();
+
         if (ranInThisProcess)
         {
             SetRunButtons(false);
@@ -74,6 +78,9 @@ public class MainActivity : Activity
         {
             Append(DeviceInfo());
             Append("Tap \"Run all (fix)\" first. \"Run as is\" shows stock MonoMod behaviour.");
+            // CI: `am start ... --ez autorun true` runs the fixed suite without a tap.
+            if (Intent?.GetBooleanExtra("autorun", false) == true)
+                Start(withFix: true);
         }
     }
 
@@ -117,6 +124,20 @@ public class MainActivity : Activity
         {
             Append("FATAL: " + e);
         }
+    }
+
+    static bool crashLoggingInstalled;
+
+    void InstallCrashLogging()
+    {
+        if (crashLoggingInstalled) return;
+        crashLoggingInstalled = true;
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            Append("UNHANDLED (AppDomain): " + e.ExceptionObject);
+        AndroidEnvironment.UnhandledExceptionRaiser += (_, e) =>
+            Append("UNHANDLED (Android): " + e.Exception);
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+            Append("UNOBSERVED TASK: " + e.Exception);
     }
 
     void Step(string name, Func<string> body) =>

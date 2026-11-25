@@ -86,3 +86,38 @@ jobs:
           name: MonoModProbe-apk
           path: out/apk/*-Signed.apk
           if-no-files-found: error
+
+  # Startup/packaging smoke test: runs the APK on an x86_64 emulator (arm64 code via ARM translation)
+  # and publishes logcat, so crashes are diagnosable without a phone attached to a PC.
+  emulator-smoke:
+    needs: android-apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: MonoModProbe-apk
+          path: apk
+
+      - name: Run probe on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: ./.github/scripts/emulator-smoke.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-logs
+          path: emulator-out/

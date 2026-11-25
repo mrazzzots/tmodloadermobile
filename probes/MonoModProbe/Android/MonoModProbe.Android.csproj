@@ -11,8 +11,8 @@
 
     <ApplicationId>io.github.tmldroid.monomodprobe</ApplicationId>
     <ApplicationTitle>MonoMod Probe</ApplicationTitle>
-    <ApplicationVersion>4</ApplicationVersion>
-    <ApplicationDisplayVersion>0.1.3</ApplicationDisplayVersion>
+    <ApplicationVersion>5</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.4</ApplicationDisplayVersion>
 
     <!-- arm64 only: that is what tModLoader on Android will target -->
     <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
