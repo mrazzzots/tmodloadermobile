@@ -98,3 +98,11 @@ Collectible ALC выгружается.
   встраивается как ресурс сборки, записывается в `files/native/` и грузится по абсолютному пути.
 - Collectible `AssemblyLoadContext` на Mono **не выгружается**: смена набора модов потребует
   перезапуска приложения (как и ожидалось).
+
+### Второй прогон
+
+- Библиотека совместимости грузится по пути, все символы на месте, но `SetDllImportResolver`
+  для `"libc"` **не вызывается**: .NET for Android сам разрешает импорты из libc.
+- Решение: `tools/MonoModAndroidPatcher` (Mono.Cecil) при сборке APK переписывает P/Invoke
+  `MonoMod.Core.Interop.Unix.__errno_location` → entry point `__errno` (имя в bionic).
+  Для настоящего tModLoader этот же патч нужно применять в рантайме к его `MonoMod.Core.dll`.
