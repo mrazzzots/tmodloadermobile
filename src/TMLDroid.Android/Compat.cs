@@ -20,6 +20,19 @@ public static class OS
     public static bool IsLinux() => true;
 }
 
+/// <summary>
+/// .NET for Android has no managed entry assembly (Assembly.GetEntryAssembly() == null);
+/// on desktop tModLoader is the entry assembly, so report that.
+/// </summary>
+public static class Runtime
+{
+    static Assembly? tml;
+
+    public static Assembly? GetEntryAssembly() =>
+        Assembly.GetEntryAssembly()
+        ?? (tml ??= AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == "tModLoader"));
+}
+
 /// <summary>Replaces Terraria.ModLoader.Engine.InstallVerifier.Startup().</summary>
 public static class Install
 {

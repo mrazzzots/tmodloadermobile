@@ -13,9 +13,11 @@ namespace TMLDroid;
 /// </summary>
 public static class TmlPatcher
 {
-    public const int PatchVersion = 3;
+    public const int PatchVersion = 4;
 
     public sealed record Report(string File, int OsCalls, bool InstallVerifier);
+
+    // Calls rewritten below: OS checks (Android counts as Linux) and Assembly.GetEntryAssembly().
 
     public static Report Patch(string path, string librariesDir, bool patchInstallVerifier, Action<string> log)
     {
@@ -43,6 +45,7 @@ public static class TmlPatcher
             var isOSPlatform = module.ImportReference(typeof(Compat.OS).GetMethod(nameof(Compat.OS.IsOSPlatform))!);
             var isOSPlatformName = module.ImportReference(typeof(Compat.OS).GetMethod(nameof(Compat.OS.IsOSPlatformName))!);
             var isLinux = module.ImportReference(typeof(Compat.OS).GetMethod(nameof(Compat.OS.IsLinux))!);
+            var getEntryAssembly = module.ImportReference(typeof(Compat.Runtime).GetMethod(nameof(Compat.Runtime.GetEntryAssembly))!);
 
             foreach (var type in module.GetTypes())
             foreach (var method in type.Methods)
@@ -57,6 +60,7 @@ public static class TmlPatcher
                         ("System.Runtime.InteropServices.RuntimeInformation", "IsOSPlatform", 1) => isOSPlatform,
                         ("System.OperatingSystem", "IsOSPlatform", 1) => isOSPlatformName,
                         ("System.OperatingSystem", "IsLinux", 0) => isLinux,
+                        ("System.Reflection.Assembly", "GetEntryAssembly", 0) => getEntryAssembly,
                         _ => null,
                     };
                     if (replacement == null) continue;
@@ -85,7 +89,7 @@ public static class TmlPatcher
             asm.Write(path);
         }
 
-        log($"patched {Path.GetFileName(path)}: {osCalls} OS checks rewritten{(installPatched ? ", InstallVerifier.Startup replaced" : "")}");
+        log($"patched {Path.GetFileName(path)}: {osCalls} calls rewritten (OS checks, GetEntryAssembly){(installPatched ? ", InstallVerifier.Startup replaced" : "")}");
         return new(path, osCalls, installPatched);
     }
 }
