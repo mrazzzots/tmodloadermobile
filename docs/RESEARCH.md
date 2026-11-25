@@ -148,4 +148,8 @@ FNA3D OpenGL ES 3.0, MojoShader `glsles`; ~60 FPS; FAudio играет звук.
 | SpriteBatch (внутри — индексная отрисовка) | ❌ |
 
 Гипотеза: GL-транслятор эмулятора заявляет `OES_draw_elements_base_vertex`, но не выполняет
-`glDrawRangeElementsBaseVertex`. Нужна проверка на реальном Adreno.
+`glDrawRangeElementsBaseVertex`.
+
+**Реальное устройство (vivo V2403A, Adreno 750, Android 16): все 8 тестов ✅**, SpriteBatch рисует
+5000 движущихся спрайтов, звук FAudio слышен. Проблема — только в эмуляторе CI; там индексная
+отрисовка считается известным ограничением, а результат графики проверяется на телефоне.

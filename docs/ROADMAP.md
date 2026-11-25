@@ -10,7 +10,7 @@ arm64, Android 10+. Тестовое устройство: iQOO Neo 9S Pro+.
   - [x] на телефоне: режим «как есть» — `NotImplementedException` подтверждён
   - [x] на телефоне: с фиксом — **11/11 PASS** (vivo V2403A, Snapdragon 8 Gen 3, Android 16)
 - [x] **1.2 Нативки** arm64-v8a: SDL2, FNA3D, FAudio, Theorafile собираются в CI.
-- [ ] **1.3 FNA hello world** на телефоне: SDLActivity + FNA, синий экран и спрайт.
+- [x] **1.3 FNA на телефоне**: SDLActivity + `libmain.so` → C#, FNA3D GLES3, SpriteBatch, render target, FAudio — всё работает на Adreno 750
 - [ ] **1.4 tModLoader до главного меню**: импорт файлов, заглушка Steam, без Steam.
 - [ ] **1.5 ExampleMod → Calamity**: загрузка, вход в мир, замеры RAM/FPS, список упавших IL-хуков.
 
