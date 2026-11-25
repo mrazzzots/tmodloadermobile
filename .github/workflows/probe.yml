@@ -89,11 +89,11 @@ jobs:
           mkdir -p out/emu
           clean
           dotnet publish probes/MonoModProbe/Android -c Release -f net10.0-android \
-            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:RuntimeIdentifiers=android-x64 -o out/apk-x64-patched
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:TmlAndroidRid=android-x64 -o out/apk-x64-patched
           cp out/apk-x64-patched/*-Signed.apk out/emu/probe-x64-patched.apk
           clean
           dotnet publish probes/MonoModProbe/Android -c Release -f net10.0-android \
-            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:RuntimeIdentifiers=android-x64 \
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:TmlAndroidRid=android-x64 \
             -p:TmlSkipMonoModPatch=true -o out/apk-x64-plain
           cp out/apk-x64-plain/*-Signed.apk out/emu/probe-x64-plain.apk
 

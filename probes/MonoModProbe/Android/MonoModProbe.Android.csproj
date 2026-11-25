@@ -15,7 +15,9 @@
     <ApplicationDisplayVersion>0.1.4</ApplicationDisplayVersion>
 
     <!-- arm64 only: that is what tModLoader on Android will target -->
-    <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+    <!-- CI builds an extra android-x64 APK for the emulator with -p:TmlAndroidRid=android-x64 -->
+    <TmlAndroidRid Condition="'$(TmlAndroidRid)' == ''">android-arm64</TmlAndroidRid>
+    <RuntimeIdentifiers>$(TmlAndroidRid)</RuntimeIdentifiers>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
 
     <!--
