@@ -13,7 +13,7 @@ namespace TMLDroid;
 /// </summary>
 public static class TmlPatcher
 {
-    public const int PatchVersion = 1;
+    public const int PatchVersion = 2;
 
     public sealed record Report(string File, int OsCalls, bool InstallVerifier);
 
@@ -33,7 +33,10 @@ public static class TmlPatcher
         using (var asm = AssemblyDefinition.ReadAssembly(orig, new ReaderParameters
                {
                    AssemblyResolver = resolver,
-                   ReadingMode = ReadingMode.Immediate,
+                   // Deferred: never resolve what we do not touch. Immediate mode decodes every
+                   // custom attribute and needs BCL reference assemblies (System.Runtime) as files,
+                   // which do not exist on Android. Untouched attribute blobs are written back as-is.
+                   ReadingMode = ReadingMode.Deferred,
                    InMemory = true,
                    ReadSymbols = false,
                }))

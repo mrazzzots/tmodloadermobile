@@ -21,7 +21,7 @@ public class MainActivity : Activity
     const int PickZip = 1;
 
     TextView status = null!;
-    Button importButton = null!, playButton = null!, shareButton = null!;
+    Button importButton = null!, finishButton = null!, playButton = null!, shareButton = null!;
     bool busy;
 
     protected override void OnCreate(Bundle? savedInstanceState)
@@ -41,6 +41,12 @@ public class MainActivity : Activity
         status.SetPadding(0, 32, 0, 32);
 
         importButton = new Button(this) { Text = "Импортировать TMLDroid.zip" };
+        finishButton = new Button(this) { Text = "Завершить импорт (без повторного копирования)" };
+        finishButton.Click += (_, _) => RunBusy("Завершение импорта", () =>
+        {
+            var summary = Importer.Finish(0, 0, Status);
+            return $"Готово: {summary.Files} файлов, Terraria {summary.TerrariaVersion}.";
+        });
         playButton = new Button(this) { Text = "Играть" };
         shareButton = new Button(this) { Text = "Поделиться логами" };
         importButton.Click += (_, _) => PickArchive();
@@ -51,6 +57,7 @@ public class MainActivity : Activity
         root.AddView(subtitle);
         root.AddView(status);
         root.AddView(importButton);
+        root.AddView(finishButton);
         root.AddView(playButton);
         root.AddView(shareButton);
         var scroll = new ScrollView(this);
@@ -80,6 +87,10 @@ public class MainActivity : Activity
             playButton.Enabled = !busy;
         }
         importButton.Enabled = !busy;
+        finishButton.Visibility = Importer.CanFinish ? ViewStates.Visible : ViewStates.Gone;
+        finishButton.Enabled = !busy;
+        if (summary == null && Importer.CanFinish)
+            status.Text = "Файлы распакованы, но импорт не завершён. Нажмите «Завершить импорт».";
     }
 
     void PickArchive()

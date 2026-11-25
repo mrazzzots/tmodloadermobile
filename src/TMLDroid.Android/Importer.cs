@@ -70,6 +70,22 @@ public static class Importer
             }
         }
         HostLog.Info($"extracted {files} files, {bytes >> 20} MB");
+        return Finish(files, bytes, progress);
+    }
+
+    /// <summary>True when files were extracted but the import did not finish (e.g. a patch step failed).</summary>
+    public static bool CanFinish => Load() == null && File.Exists(Paths.TModLoaderDll);
+
+    /// <summary>Post-extraction steps: checks, mods, patching, marker. Can be re-run without re-extracting.</summary>
+    public static Summary Finish(long files, long bytes, Action<string> progress)
+    {
+        if (files == 0)
+        {
+            HostLog.StartSession("finish import");
+            var all = Directory.EnumerateFiles(Paths.Game, "*", SearchOption.AllDirectories).Select(f => new FileInfo(f)).ToList();
+            files = all.Count;
+            bytes = all.Sum(f => f.Length);
+        }
 
         progress("Проверяю файлы…");
         foreach (var required in new[] { Paths.TModLoaderDll, Paths.TerrariaExe, Path.Combine(Paths.TerrariaContent, "Images", "Projectile_651.xnb") })
@@ -131,7 +147,8 @@ public static class Importer
         var enabled = new HashSet<string>(StringComparer.Ordinal);
         try { if (File.Exists(enabledPath)) enabled.UnionWith(JsonSerializer.Deserialize<string[]>(File.ReadAllText(enabledPath)) ?? []); } catch { }
         File.WriteAllText(enabledPath, JsonSerializer.Serialize(enabled.OrderBy(n => n).ToArray()));
-        HostLog.Info($"mods installed: {string.Join(", ", names)}; enabled.json: {string.Join(", ", enabled)}");
-        return names.ToArray();
+        var installed = Directory.EnumerateFiles(Paths.SavesMods, "*.tmod").Select(Path.GetFileNameWithoutExtension).OfType<string>().OrderBy(n => n).ToArray();
+        HostLog.Info($"mods copied now: {string.Join(", ", names)}; installed: {string.Join(", ", installed)}; enabled.json: {string.Join(", ", enabled)}");
+        return installed;
     }
 }
