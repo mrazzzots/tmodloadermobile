@@ -171,6 +171,8 @@ public class MainActivity : Activity
         AppendTail(sb, "host.log", Paths.HostLog, 400);
         AppendTail(sb, "tModLoader client.log", Path.Combine(Paths.TmlLogs, "client.log"), 400);
         AppendTail(sb, "tModLoader Natives.log", Path.Combine(Paths.TmlLogs, "Natives.log"), 50);
+        AppendExitReasons(sb);
+        AppendLogcat(sb);
         var text = sb.ToString();
         if (text.Length > 400_000) text = text[^400_000..];
 
@@ -179,6 +181,56 @@ public class MainActivity : Activity
         send.PutExtra(Intent.ExtraSubject, "TMLDroid logs");
         send.PutExtra(Intent.ExtraText, text);
         StartActivity(Intent.CreateChooser(send, "Поделиться логами"));
+    }
+
+    /// <summary>Why previous processes of this app died (native crash, ANR, low memory...). API 30+.</summary>
+    void AppendExitReasons(StringBuilder sb)
+    {
+        sb.AppendLine().AppendLine("===== exit reasons =====");
+        if (!OperatingSystem.IsAndroidVersionAtLeast(30)) { sb.AppendLine("(нужен Android 11+)"); return; }
+        try
+        {
+            var am = (ActivityManager)GetSystemService(ActivityService)!;
+            var infos = am.GetHistoricalProcessExitReasons(PackageName, 0, 5);
+            foreach (var info in infos)
+            {
+                sb.AppendLine($"{DateTimeOffset.FromUnixTimeMilliseconds(info.Timestamp).ToLocalTime():dd.MM HH:mm:ss} " +
+                              $"pid={info.Pid} reason={info.Reason} status={info.Status} importance={info.Importance} " +
+                              $"pss={info.Pss / 1024}MB rss={info.Rss / 1024}MB: {info.Description}");
+                // Native crashes carry the tombstone (protobuf); its strings are still readable enough.
+                var reason = Convert.ToInt32(info.Reason); // REASON_CRASH = 4, REASON_CRASH_NATIVE = 5
+                if (reason is 4 or 5)
+                {
+                    using var trace = info.TraceInputStream;
+                    if (trace != null)
+                    {
+                        using var ms = new MemoryStream();
+                        trace.CopyTo(ms);
+                        var readable = new string(Encoding.UTF8.GetString(ms.ToArray())
+                            .Select(c => char.IsControl(c) && c != '\n' ? ' ' : c).ToArray());
+                        sb.AppendLine("  trace: " + (readable.Length > 20000 ? readable[..20000] : readable));
+                    }
+                }
+            }
+            if (infos.Count == 0) sb.AppendLine("(нет записей)");
+        }
+        catch (Exception e) { sb.AppendLine("(ошибка: " + e.Message + ")"); }
+    }
+
+    /// <summary>Recent logcat lines of this app (apps may read their own UID's log).</summary>
+    static void AppendLogcat(StringBuilder sb)
+    {
+        sb.AppendLine().AppendLine("===== logcat (this app) =====");
+        try
+        {
+            var process = Java.Lang.Runtime.GetRuntime()!.Exec(new[] { "logcat", "-d", "-t", "1500", "-v", "time" });
+            using var reader = new StreamReader(process!.InputStream!);
+            var lines = reader.ReadToEnd().Split('\n')
+                .Where(l => !l.Contains("Access denied finding property"))
+                .TakeLast(800);
+            foreach (var l in lines) sb.AppendLine(l);
+        }
+        catch (Exception e) { sb.AppendLine("(ошибка: " + e.Message + ")"); }
     }
 
     static void AppendTail(StringBuilder sb, string title, string path, int lines)
