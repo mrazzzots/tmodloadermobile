@@ -58,6 +58,7 @@ public sealed class ProbeGame : Game
         tile.SetData(px);
 
         target = new RenderTarget2D(GraphicsDevice, 320, 180);
+        SelfTest();
 
         for (var i = 0; i < SpriteCount; i++)
         {
@@ -78,6 +79,45 @@ public sealed class ProbeGame : Game
         {
             Log("audio FAILED: " + e.Message);
         }
+    }
+
+    /// <summary>Renders known content into a render target and reads it back.</summary>
+    void SelfTest()
+    {
+        void Check(string name, Action draw)
+        {
+            try
+            {
+                using var rt = new RenderTarget2D(GraphicsDevice, 64, 64);
+                GraphicsDevice.SetRenderTarget(rt);
+                GraphicsDevice.Clear(Color.Black);
+                draw();
+                GraphicsDevice.SetRenderTarget(null);
+                var px = new Color[64 * 64];
+                rt.GetData(px);
+                var lit = px.Count(c => c.R + c.G + c.B > 30);
+                var mid = px[32 * 64 + 32];
+                Log($"selftest {name}: lit {lit}/{px.Length}, center=({mid.R},{mid.G},{mid.B},{mid.A}), corner=({px[0].R},{px[0].G},{px[0].B})");
+            }
+            catch (Exception e)
+            {
+                Log($"selftest {name} FAILED: {e.GetType().Name}: {e.Message}");
+            }
+        }
+
+        Check("clear-red", () => GraphicsDevice.Clear(Color.Red));
+        Check("spritebatch-tile", () =>
+        {
+            batch.Begin();
+            batch.Draw(tile, new Rectangle(0, 0, 64, 64), Color.White);
+            batch.End();
+        });
+        Check("spritebatch-tinted", () =>
+        {
+            batch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            batch.Draw(tile, new Rectangle(16, 16, 32, 32), Color.Lime);
+            batch.End();
+        });
     }
 
     double phase;
