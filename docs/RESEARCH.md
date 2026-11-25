@@ -85,3 +85,16 @@ Collectible ALC выгружается.
 - Collectible `AssemblyLoadContext` (выгрузка модов) на Mono ограничен. Тест проверяет
   загрузку и выгрузку. Если выгрузка не работает, смена набора модов будет требовать
   перезапуска приложения.
+
+## Первый прогон на устройстве (vivo V2403A, Snapdragon 8 Gen 3, Android 16, .NET 10.0.15 Mono)
+
+- Стоковый MonoMod: `NotImplementedException` для Android — подтверждено.
+- Подмена ОС на Linux работает (`PlatformDetection.OS: Android -> Linux`), LinuxSystem создаётся.
+- Дальше падает `MonoMod.Core.Interop.Unix`: P/Invoke `__errno_location` (имя из glibc,
+  в bionic — `__errno`). Исправление: `NativeLibrary.SetDllImportResolver` для сборок MonoMod
+  отправляет `"libc"` в нашу библиотеку `libmm_gcc_s_shim.so`, которая экспортирует
+  `__errno_location`, а остальное (`mmap`, `mprotect`, `dlopen`…) отдаёт через свои DT_NEEDED.
+- `System.loadLibrary("mm_gcc_s_shim")` не нашёл библиотеку, хотя она в APK. Теперь она
+  встраивается как ресурс сборки, записывается в `files/native/` и грузится по абсолютному пути.
+- Collectible `AssemblyLoadContext` на Mono **не выгружается**: смена набора модов потребует
+  перезапуска приложения (как и ожидалось).
