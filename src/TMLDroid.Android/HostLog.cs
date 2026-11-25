@@ -9,10 +9,20 @@ public static class HostLog
     public static void Error(string message) => Write("ERROR", message);
     public static void Error(string message, Exception e) => Write("ERROR", $"{message}\n{e}");
 
+    /// <summary>File only (used by ConsoleCapture, whose text already went to logcat).</summary>
+    public static void Raw(string message)
+    {
+        var line = $"[{DateTime.Now:HH:mm:ss.fff}] {message}";
+        lock (gate)
+        {
+            try { File.AppendAllText(Paths.HostLog, line + "\n"); } catch { }
+        }
+    }
+
     static void Write(string level, string message)
     {
         var line = $"[{DateTime.Now:HH:mm:ss.fff}] [{level}] {message}";
-        Console.WriteLine("TMLDroid " + line);
+        (ConsoleCapture.OriginalOut ?? Console.Out).WriteLine("TMLDroid " + line);
         lock (gate)
         {
             try { File.AppendAllText(Paths.HostLog, line + "\n"); } catch { /* best effort */ }

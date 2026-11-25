@@ -23,6 +23,7 @@ public static class Paths
     public static string InternalRoot { get; private set; } = "";
     public static string InternalCache { get; private set; } = "";
     public static string NativeDir => Path.Combine(InternalRoot, "native");
+    public static string LaunchToken => Path.Combine(InternalRoot, "launch.token");
     public static string MonoModHelperDir => Path.Combine(InternalCache, "monomod");
     public static string Cache => Path.Combine(Root, "cache");
 

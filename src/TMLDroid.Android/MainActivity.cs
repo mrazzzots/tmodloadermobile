@@ -160,6 +160,9 @@ public class MainActivity : Activity
 
     void StartGame()
     {
+        // One-shot token: Android recreates GameActivity after the process dies; only a launch
+        // from this button may start tModLoader.
+        File.WriteAllText(Paths.LaunchToken, DateTime.UtcNow.ToString("O"));
         var intent = new Intent(this, Java.Lang.Class.ForName("io.github.tmldroid.GameActivity"));
         StartActivity(intent);
     }

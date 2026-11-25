@@ -28,6 +28,12 @@ public static unsafe class GameEntry
     [UnmanagedCallersOnly]
     static int RunGame(int argc, IntPtr argv)
     {
+        if (!File.Exists(Paths.LaunchToken))
+        {
+            HostLog.Info("GameActivity recreated by Android after the process died: not starting tModLoader");
+            return 0; // SDL finishes the activity, the launcher shows up again
+        }
+        File.Delete(Paths.LaunchToken);
         try
         {
             Run();
@@ -49,6 +55,7 @@ public static unsafe class GameEntry
     static void Run()
     {
         HostLog.StartSession("game");
+        ConsoleCapture.Install();
         HostLog.Info($"TMLDroid {typeof(GameEntry).Assembly.GetName().Version}, {RuntimeInformation.FrameworkDescription}, " +
                      $"{RuntimeInformation.OSDescription}, {RuntimeInformation.ProcessArchitecture}");
 
