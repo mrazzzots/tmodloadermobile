@@ -146,6 +146,45 @@ public sealed class ProbeGame : Game
             fx.CurrentTechnique.Passes[0].Apply();
             GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleStrip, quad, 0, 2);
         });
+        var indices = new short[] { 0, 1, 2, 2, 1, 3 };
+        var vpc = quad.Select(v => new VertexPositionColor(v.Position, Color.Blue)).ToArray();
+        void DrawBuffers(VertexBuffer vb, IndexBuffer ib)
+        {
+            using var fx = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true };
+            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+            GraphicsDevice.BlendState = BlendState.Opaque;
+            GraphicsDevice.DepthStencilState = DepthStencilState.None;
+            GraphicsDevice.SetVertexBuffer(vb);
+            GraphicsDevice.Indices = ib;
+            fx.CurrentTechnique.Passes[0].Apply();
+            GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, 4, 0, 2);
+            GraphicsDevice.SetVertexBuffer(null);
+            GraphicsDevice.Indices = null;
+        }
+        Check("buffers-static", () =>
+        {
+            using var vb = new VertexBuffer(GraphicsDevice, typeof(VertexPositionColor), 4, BufferUsage.WriteOnly);
+            using var ib = new IndexBuffer(GraphicsDevice, IndexElementSize.SixteenBits, 6, BufferUsage.WriteOnly);
+            vb.SetData(vpc);
+            ib.SetData(indices);
+            DrawBuffers(vb, ib);
+        });
+        Check("buffers-dynamic-discard", () =>
+        {
+            using var vb = new DynamicVertexBuffer(GraphicsDevice, typeof(VertexPositionColor), 4, BufferUsage.WriteOnly);
+            using var ib = new DynamicIndexBuffer(GraphicsDevice, IndexElementSize.SixteenBits, 6, BufferUsage.WriteOnly);
+            vb.SetData(vpc, 0, 4, SetDataOptions.Discard);
+            ib.SetData(indices, 0, 6, SetDataOptions.Discard);
+            DrawBuffers(vb, ib);
+        });
+        Check("buffers-dynamic-nooverwrite", () =>
+        {
+            using var vb = new DynamicVertexBuffer(GraphicsDevice, typeof(VertexPositionColor), 4, BufferUsage.WriteOnly);
+            using var ib = new IndexBuffer(GraphicsDevice, IndexElementSize.SixteenBits, 6, BufferUsage.WriteOnly);
+            vb.SetData(vpc, 0, 4, SetDataOptions.NoOverwrite);
+            ib.SetData(indices);
+            DrawBuffers(vb, ib);
+        });
         Check("spritebatch-tinted", () =>
         {
             batch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);

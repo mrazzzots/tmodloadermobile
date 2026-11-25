@@ -18,7 +18,9 @@ pid="$(adb shell pidof "$PKG" | tr -d '\r')"
 echo "process: ${pid:+alive (pid $pid)}${pid:-NOT running}"
 
 echo "---- FNA probe / SDL / runtime / crashes"
-grep -E "FNAPROBE|TMLDroid|SDL|FNA3D|FAudio| DOTNET |monodroid.*(E|F) |F libc|F DEBUG|AndroidRuntime|UNHANDLED" "$OUT/logcat-full.txt" \
+grep -vE "invalid GLESv2 context version" "$OUT/logcat-full.txt" > "$OUT/logcat-clean.txt"
+echo "glFenceSync errors from the emulator GL translator: $(grep -c 'invalid GLESv2 context version' "$OUT/logcat-full.txt")"
+grep -E "FNAPROBE|TMLDroid|SDL|FNA3D|FAudio| DOTNET |monodroid.*(E|F) |F libc|F DEBUG|AndroidRuntime|UNHANDLED" "$OUT/logcat-clean.txt" \
   | grep -vE "F DEBUG +: +(r[0-9]|x[0-9]|rax|rbx|rcx|rdx|r8 |r12|rdi|rbp|lr |sp |pc )" | head -n 250
 
 python3 - "$OUT/screen.png" <<'PY'
