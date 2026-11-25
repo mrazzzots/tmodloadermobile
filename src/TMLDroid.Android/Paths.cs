@@ -18,12 +18,19 @@ public static class Paths
     public static string HostLog => Path.Combine(Logs, "host.log");
     public static string TmlLogs => Path.Combine(TModLoader, "tModLoader-Logs");
     public static string ImportMarker => Path.Combine(Game, "import.json");
-    public static string NativeDir => Path.Combine(Root, "native");
+    // Native code (our compat .so, MonoMod's helper) must live in internal storage: the Android
+    // linker refuses to dlopen anything from /storage/emulated (external app dir).
+    public static string InternalRoot { get; private set; } = "";
+    public static string InternalCache { get; private set; } = "";
+    public static string NativeDir => Path.Combine(InternalRoot, "native");
+    public static string MonoModHelperDir => Path.Combine(InternalCache, "monomod");
     public static string Cache => Path.Combine(Root, "cache");
 
-    public static void Init(string root)
+    public static void Init(string root, string internalRoot, string internalCache)
     {
         Root = root;
+        InternalRoot = internalRoot;
+        InternalCache = internalCache;
         Directory.CreateDirectory(Logs);
     }
 }

@@ -11,7 +11,7 @@ public sealed class App : Application
     public override void OnCreate()
     {
         base.OnCreate();
-        Paths.Init(GetExternalFilesDir(null)?.AbsolutePath ?? FilesDir!.AbsolutePath);
+        Paths.Init(GetExternalFilesDir(null)?.AbsolutePath ?? FilesDir!.AbsolutePath, FilesDir!.AbsolutePath, CacheDir!.AbsolutePath);
         GameEntry.Publish();
     }
 }
