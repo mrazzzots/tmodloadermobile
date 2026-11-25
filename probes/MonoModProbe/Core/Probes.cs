@@ -60,7 +60,17 @@ public static class Probes
             $"MonoMod.RuntimeDetour {Ver(typeof(Hook).Assembly)}",
             $"MonoMod.Core {Ver(typeof(PlatformTriple).Assembly)}",
             $"MonoMod.Utils {Ver(typeof(PlatformDetection).Assembly)}",
-            $"Mono.Cecil {Ver(typeof(AssemblyDefinition).Assembly)}");
+            $"Mono.Cecil {Ver(typeof(AssemblyDefinition).Assembly)}",
+            $"MonoMod.Core errno P/Invoke: {ErrnoEntryPoint()}");
+    }
+
+    /// <summary>Shows whether the MonoMod.Core in use was patched for bionic (__errno).</summary>
+    static string ErrnoEntryPoint()
+    {
+        var unix = typeof(PlatformTriple).Assembly.GetType("MonoMod.Core.Interop.Unix");
+        var m = unix?.GetMethod("__errno_location", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+        var dll = m?.GetCustomAttribute<DllImportAttribute>();
+        return dll is null ? "not found" : $"[{dll.Value}] {dll.EntryPoint}";
     }
 
     static string PlatformTriple_()

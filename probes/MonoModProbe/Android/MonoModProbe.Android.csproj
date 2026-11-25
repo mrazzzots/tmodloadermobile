@@ -11,8 +11,8 @@
 
     <ApplicationId>io.github.tmldroid.monomodprobe</ApplicationId>
     <ApplicationTitle>MonoMod Probe</ApplicationTitle>
-    <ApplicationVersion>3</ApplicationVersion>
-    <ApplicationDisplayVersion>0.1.2</ApplicationDisplayVersion>
+    <ApplicationVersion>4</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.3</ApplicationDisplayVersion>
 
     <!-- arm64 only: that is what tModLoader on Android will target -->
     <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
@@ -49,6 +49,43 @@
   </ItemGroup>
   <Target Name="WarnNoShim" BeforeTargets="Build" Condition="!Exists('$(ShimLib)')">
     <Warning Text="libmm_gcc_s_shim.so not found at $(ShimLib). The APK will run, but the 'with fix' mode will report the shim as missing. Run native/build-android-natives.sh first." />
+  </Target>
+
+  <!--
+    Bionic has no glibc "__errno_location"; .NET for Android resolves "libc" imports itself, so a
+    DllImportResolver cannot redirect them. Patch MonoMod.Core.dll's P/Invoke entry point to
+    "__errno" (tools/MonoModAndroidPatcher) and package the patched copy instead.
+  -->
+  <PropertyGroup>
+    <TmlPatcherProject>$(MSBuildThisFileDirectory)../../../tools/MonoModAndroidPatcher/MonoModAndroidPatcher.csproj</TmlPatcherProject>
+    <TmlPatchedDir>$(MSBuildThisFileDirectory)obj/monomod-android/</TmlPatchedDir>
+    <TmlPatchedMonoModCore>$(TmlPatchedDir)MonoMod.Core.dll</TmlPatchedMonoModCore>
+  </PropertyGroup>
+
+  <Target Name="TmlPatchMonoModCore" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <_TmlMMCore Include="@(RuntimeCopyLocalItems)" Condition="'%(Filename)%(Extension)' == 'MonoMod.Core.dll'" />
+    </ItemGroup>
+    <Error Condition="'@(_TmlMMCore)' == ''" Text="MonoMod.Core.dll not found in RuntimeCopyLocalItems" />
+    <Exec Condition="!Exists('$(TmlPatchedMonoModCore)')"
+          Command="dotnet run --project &quot;$(TmlPatcherProject)&quot; -c Release -- &quot;%(_TmlMMCore.FullPath)&quot; &quot;$(TmlPatchedMonoModCore)&quot;" />
+    <ItemGroup>
+      <RuntimeCopyLocalItems Remove="@(_TmlMMCore)" />
+      <RuntimeCopyLocalItems Include="@(_TmlMMCore->'$(TmlPatchedMonoModCore)')" />
+    </ItemGroup>
+    <Message Importance="high" Text="TMLDroid: using patched MonoMod.Core.dll ($(TmlPatchedMonoModCore))" />
+  </Target>
+
+  <!-- Safety net: replace any copy of the unpatched DLL that reached later item lists. -->
+  <Target Name="TmlReplaceMonoModCoreLate" AfterTargets="ResolveAssemblyReferences;ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <_TmlLateRCL Include="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)%(Extension)' == 'MonoMod.Core.dll' and '%(FullPath)' != '$([System.IO.Path]::GetFullPath($(TmlPatchedMonoModCore)))'" />
+      <ReferenceCopyLocalPaths Remove="@(_TmlLateRCL)" />
+      <ReferenceCopyLocalPaths Include="@(_TmlLateRCL->'$(TmlPatchedMonoModCore)')" />
+      <_TmlLatePub Include="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'MonoMod.Core.dll' and '%(FullPath)' != '$([System.IO.Path]::GetFullPath($(TmlPatchedMonoModCore)))'" />
+      <ResolvedFileToPublish Remove="@(_TmlLatePub)" />
+      <ResolvedFileToPublish Include="@(_TmlLatePub->'$(TmlPatchedMonoModCore)')" />
+    </ItemGroup>
   </Target>
 
 </Project>
