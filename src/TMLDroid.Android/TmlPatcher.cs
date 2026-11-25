@@ -29,6 +29,7 @@ public static class TmlPatcher
         resolver.AddSearchDirectory(Path.GetDirectoryName(path)!);
 
         int osCalls = 0;
+        int hooks = 0;
         bool installPatched = false;
         using (var asm = AssemblyDefinition.ReadAssembly(orig, new ReaderParameters
                {
@@ -50,7 +51,6 @@ public static class TmlPatcher
             var setFg = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.SetForegroundColor))!);
             var setBg = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.SetBackgroundColor))!);
             var resetColor = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.ResetColor))!);
-            int hooks = 0;
 
             foreach (var type in module.GetTypes())
             foreach (var method in type.Methods)
