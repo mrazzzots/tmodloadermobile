@@ -75,7 +75,8 @@ jobs:
           apk="$(ls out/apk/*-Signed.apk | head -n1)"
           echo "APK: $apk"
           unzip -l "$apk" | grep -E 'lib/arm64-v8a/.*\.so' || true
-          unzip -l "$apk" | grep -q 'lib/arm64-v8a/libmm_gcc_s_shim.so'
+          dll="$(find probes/MonoModProbe/Android/obj -name 'MonoModProbe.Android.dll' -path '*Release*' | head -n1)"
+          grep -q 'libmm_gcc_s_shim.so' "$dll" && echo "shim embedded in $dll"
 
       - uses: actions/upload-artifact@v4
         with:

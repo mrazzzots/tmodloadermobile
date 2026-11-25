@@ -97,10 +97,11 @@ public class MainActivity : Activity
                 Append(ProbeRunner.Format(ProbeRunner.Run("stock_platform_triple (expected to FAIL on Android)",
                     () => PlatformTriple.Current.HostTriple.ToString())));
 
-                Step("preload_gcc_s_shim", () =>
+                Step("install_native_compat", () =>
                 {
-                    Java.Lang.JavaSystem.LoadLibrary("mm_gcc_s_shim");
-                    return "libmm_gcc_s_shim.so loaded (SONAME libgcc_s.so.1)";
+                    using var so = typeof(MainActivity).Assembly.GetManifestResourceStream("libmm_gcc_s_shim.so")
+                        ?? throw new FileNotFoundException("libmm_gcc_s_shim.so is not embedded in this build");
+                    return MonoModAndroidFix.InstallNativeCompat(so, Path.Combine(FilesDir!.AbsolutePath, "native", "libmm_gcc_s_shim.so"));
                 });
                 Step("helper_drop_path", () => MonoModAndroidFix.SetHelperDropPath(Path.Combine(CacheDir!.AbsolutePath, "monomod")));
                 Step("monomod_log_file", () => MonoModAndroidFix.EnableMonoModLogFile(Path.ChangeExtension(logPath, ".monomod.log")));

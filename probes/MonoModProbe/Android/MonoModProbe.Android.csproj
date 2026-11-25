@@ -11,8 +11,8 @@
 
     <ApplicationId>io.github.tmldroid.monomodprobe</ApplicationId>
     <ApplicationTitle>MonoMod Probe</ApplicationTitle>
-    <ApplicationVersion>2</ApplicationVersion>
-    <ApplicationDisplayVersion>0.1.1</ApplicationDisplayVersion>
+    <ApplicationVersion>3</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.2</ApplicationDisplayVersion>
 
     <!-- arm64 only: that is what tModLoader on Android will target -->
     <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
@@ -44,7 +44,8 @@
     <ShimLib>$(MSBuildThisFileDirectory)../../../native/out/arm64-v8a/libmm_gcc_s_shim.so</ShimLib>
   </PropertyGroup>
   <ItemGroup Condition="Exists('$(ShimLib)')">
-    <AndroidNativeLibrary Include="$(ShimLib)" Abi="arm64-v8a" />
+    <!-- Loaded by absolute path at runtime: does not depend on how the APK stores native libs -->
+    <EmbeddedResource Include="$(ShimLib)" LogicalName="libmm_gcc_s_shim.so" />
   </ItemGroup>
   <Target Name="WarnNoShim" BeforeTargets="Build" Condition="!Exists('$(ShimLib)')">
     <Warning Text="libmm_gcc_s_shim.so not found at $(ShimLib). The APK will run, but the 'with fix' mode will report the shim as missing. Run native/build-android-natives.sh first." />

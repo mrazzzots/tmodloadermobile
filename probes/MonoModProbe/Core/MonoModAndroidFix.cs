@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text;
 using System.Runtime.InteropServices;
 using MonoMod;
 using MonoMod.Utils;
@@ -57,6 +58,44 @@ public static class MonoModAndroidFix
             throw new InvalidOperationException($"Spoof failed, PlatformDetection.OS is still {now}");
         return $"PlatformDetection.OS: {detected} -> {now}";
     }
+
+    static IntPtr compatHandle;
+
+    /// <summary>
+    /// Writes the native compat library (libmm_gcc_s_shim.so, SONAME libgcc_s.so.1) to
+    /// <paramref name="path"/>, loads it by absolute path and routes the "libc" P/Invokes of
+    /// MonoMod assemblies to it. It exports glibc's __errno_location (missing in bionic); every
+    /// other libc symbol resolves through its DT_NEEDED libc.so. Must run before MonoMod.Core's
+    /// Interop.Unix is touched: a failed type initializer is cached for the process lifetime.
+    /// </summary>
+    public static string InstallNativeCompat(Stream library, string path)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using (var file = File.Create(path))
+            library.CopyTo(file);
+
+        compatHandle = NativeLibrary.Load(path);
+        var sb = new StringBuilder();
+        sb.Append($"loaded {path} (0x{compatHandle:x})");
+
+        unsafe
+        {
+            if (NativeLibrary.TryGetExport(compatHandle, "mm_gcc_s_shim_version", out var ver))
+                sb.Append('\n').Append(Marshal.PtrToStringAnsi(((delegate* unmanaged<IntPtr>)ver)()));
+        }
+        foreach (var sym in new[] { "__errno_location", "_Unwind_RaiseException", "mmap", "mprotect", "mkstemp", "sysconf" })
+            sb.Append($"\n  {sym}: {(NativeLibrary.TryGetExport(compatHandle, sym, out _) ? "ok" : "MISSING")}");
+
+        foreach (var asm in new[] { typeof(MonoMod.Core.Platforms.PlatformTriple).Assembly, typeof(PlatformDetection).Assembly })
+        {
+            NativeLibrary.SetDllImportResolver(asm, ResolveLibc);
+            sb.Append($"\n  libc resolver -> {asm.GetName().Name}");
+        }
+        return sb.ToString();
+    }
+
+    static IntPtr ResolveLibc(string name, Assembly assembly, DllImportSearchPath? searchPath) =>
+        name is "libc" or "c" or "libc.so" or "libc.so.6" ? compatHandle : IntPtr.Zero;
 
     /// <summary>
     /// Loads a native library by name or path (used to preload the libgcc_s replacement).

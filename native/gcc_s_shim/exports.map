@@ -1,6 +1,7 @@
 {
   global:
     _Unwind_*;
+    __errno_loc*;
     mm_gcc_s_shim_version;
   local:
     *;
