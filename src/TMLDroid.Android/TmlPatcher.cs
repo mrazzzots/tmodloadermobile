@@ -13,7 +13,7 @@ namespace TMLDroid;
 /// </summary>
 public static class TmlPatcher
 {
-    public const int PatchVersion = 2;
+    public const int PatchVersion = 3;
 
     public sealed record Report(string File, int OsCalls, bool InstallVerifier);
 
@@ -23,10 +23,8 @@ public static class TmlPatcher
         if (!File.Exists(orig))
             File.Copy(path, orig);
 
-        var resolver = new DefaultAssemblyResolver();
+        using var resolver = new RefAssemblyResolver(librariesDir, log);
         resolver.AddSearchDirectory(Path.GetDirectoryName(path)!);
-        foreach (var dir in Directory.EnumerateDirectories(librariesDir, "*", SearchOption.AllDirectories))
-            resolver.AddSearchDirectory(dir);
 
         int osCalls = 0;
         bool installPatched = false;
