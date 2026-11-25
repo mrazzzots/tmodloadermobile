@@ -55,7 +55,7 @@ public static class Probes
             $"os: {RuntimeInformation.OSDescription}",
             $"process arch: {RuntimeInformation.ProcessArchitecture}",
             $"IsAndroid={OperatingSystem.IsAndroid()} IsLinux={OperatingSystem.IsLinux()}",
-            $"dynamic code: supported={RuntimeFeature.IsDynamicCodeSupported} compiled={RuntimeFeature.IsDynamicCodeCompiled}",
+            $"dynamic code: supported={System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported} compiled={System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeCompiled}",
             $"MonoMod PlatformDetection: OS={PlatformDetection.OS} Arch={PlatformDetection.Architecture} Runtime={PlatformDetection.Runtime} {PlatformDetection.RuntimeVersion}",
             $"MonoMod.RuntimeDetour {Ver(typeof(Hook).Assembly)}",
             $"MonoMod.Core {Ver(typeof(PlatformTriple).Assembly)}",
