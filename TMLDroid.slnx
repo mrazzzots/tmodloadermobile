@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TMLDroid.Android/TMLDroid.Android.csproj" />
+  </Folder>
   <Folder Name="/probes/">
     <Project Path="probes/MonoModProbe/Core/MonoModProbe.Core.csproj" />
     <Project Path="probes/MonoModProbe/Desktop/MonoModProbe.Desktop.csproj" />

@@ -1,0 +1,44 @@
+<Project>
+  <!--
+    Shared by every Android project that loads MonoMod (probes, the TMLDroid app).
+    Packages a MonoMod.Core.dll patched for bionic (tools/MonoModAndroidPatcher) instead of the
+    NuGet one. Set TmlSkipMonoModPatch=true to package the unpatched DLL.
+  -->
+  <!--
+    Bionic has no glibc "__errno_location"; .NET for Android resolves "libc" imports itself, so a
+    DllImportResolver cannot redirect them. Patch MonoMod.Core.dll's P/Invoke entry point to
+    "__errno" (tools/MonoModAndroidPatcher) and package the patched copy instead.
+  -->
+  <PropertyGroup>
+    <TmlPatcherProject>$(MSBuildThisFileDirectory)../tools/MonoModAndroidPatcher/MonoModAndroidPatcher.csproj</TmlPatcherProject>
+    <TmlPatchedDir>$(MSBuildProjectDirectory)/obj/monomod-android/</TmlPatchedDir>
+    <TmlPatchedMonoModCore>$(TmlPatchedDir)MonoMod.Core.dll</TmlPatchedMonoModCore>
+  </PropertyGroup>
+
+  <Target Name="TmlPatchMonoModCore" AfterTargets="ResolvePackageAssets" Condition="'$(TmlSkipMonoModPatch)' != 'true'">
+    <ItemGroup>
+      <_TmlMMCore Include="@(RuntimeCopyLocalItems)" Condition="'%(Filename)%(Extension)' == 'MonoMod.Core.dll'" />
+    </ItemGroup>
+    <Error Condition="'@(_TmlMMCore)' == ''" Text="MonoMod.Core.dll not found in RuntimeCopyLocalItems" />
+    <Exec Condition="!Exists('$(TmlPatchedMonoModCore)')"
+          Command="dotnet run --project &quot;$(TmlPatcherProject)&quot; -c Release -- &quot;%(_TmlMMCore.FullPath)&quot; &quot;$(TmlPatchedMonoModCore)&quot;" />
+    <ItemGroup>
+      <RuntimeCopyLocalItems Remove="@(_TmlMMCore)" />
+      <RuntimeCopyLocalItems Include="@(_TmlMMCore->'$(TmlPatchedMonoModCore)')" />
+    </ItemGroup>
+    <Message Importance="high" Text="TMLDroid: using patched MonoMod.Core.dll ($(TmlPatchedMonoModCore))" />
+  </Target>
+
+  <!-- Safety net: replace any copy of the unpatched DLL that reached later item lists. -->
+  <Target Name="TmlReplaceMonoModCoreLate" AfterTargets="ResolveAssemblyReferences;ComputeResolvedFilesToPublishList" Condition="'$(TmlSkipMonoModPatch)' != 'true'">
+    <ItemGroup>
+      <_TmlLateRCL Include="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)%(Extension)' == 'MonoMod.Core.dll' and '%(FullPath)' != '$([System.IO.Path]::GetFullPath($(TmlPatchedMonoModCore)))'" />
+      <ReferenceCopyLocalPaths Remove="@(_TmlLateRCL)" />
+      <ReferenceCopyLocalPaths Include="@(_TmlLateRCL->'$(TmlPatchedMonoModCore)')" />
+      <_TmlLatePub Include="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'MonoMod.Core.dll' and '%(FullPath)' != '$([System.IO.Path]::GetFullPath($(TmlPatchedMonoModCore)))'" />
+      <ResolvedFileToPublish Remove="@(_TmlLatePub)" />
+      <ResolvedFileToPublish Include="@(_TmlLatePub->'$(TmlPatchedMonoModCore)')" />
+    </ItemGroup>
+  </Target>
+
+</Project>

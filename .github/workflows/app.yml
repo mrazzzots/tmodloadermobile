@@ -1,0 +1,51 @@
+name: app
+
+on:
+  push:
+    paths: ['src/**', 'native/**', 'build/**', 'tools/**', 'probes/MonoModProbe/Core/**', '.github/workflows/app.yml', '.github/workflows/natives.yml']
+  workflow_dispatch:
+
+jobs:
+  natives:
+    uses: ./.github/workflows/natives.yml
+
+  apk:
+    needs: natives
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Install .NET Android workload
+        run: dotnet workload install android
+
+      - uses: actions/download-artifact@v4
+        with: { name: natives-arm64-v8a, path: native/out/arm64-v8a }
+      - uses: actions/download-artifact@v4
+        with: { name: sdl2-java, path: native/out/java }
+
+      - name: Install Android dependencies
+        run: >
+          dotnet build src/TMLDroid.Android -t:InstallAndroidDependencies -f net10.0-android
+          -p:AndroidSdkDirectory="$ANDROID_HOME" -p:AcceptAndroidSDKLicenses=True
+
+      - name: Build TMLDroid APK
+        run: |
+          dotnet publish src/TMLDroid.Android -c Release -f net10.0-android \
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:ApplicationVersion=${{ github.run_number }} -o out/app
+          mkdir -p out/apk
+          cp out/app/*-Signed.apk out/apk/TMLDroid-arm64.apk
+          unzip -l out/apk/TMLDroid-arm64.apk | grep -E "lib/arm64-v8a/.*\.so"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TMLDroid-apk
+          path: out/apk/TMLDroid-arm64.apk
+          if-no-files-found: error

@@ -25,4 +25,5 @@ native/out/
 *.apk
 *.aab
 *.keystore
+!build/tmldroid-dev.keystore
 local.properties

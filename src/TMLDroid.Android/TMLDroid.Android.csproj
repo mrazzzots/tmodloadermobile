@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>29</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>TMLDroid</RootNamespace>
+    <AssemblyName>TMLDroid</AssemblyName>
+
+    <ApplicationId>io.github.tmldroid</ApplicationId>
+    <ApplicationTitle>TMLDroid</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+
+    <TmlAndroidRid Condition="'$(TmlAndroidRid)' == ''">android-arm64</TmlAndroidRid>
+    <RuntimeIdentifiers>$(TmlAndroidRid)</RuntimeIdentifiers>
+    <TmlAbi Condition="'$(TmlAndroidRid)' == 'android-x64'">x86_64</TmlAbi>
+    <TmlAbi Condition="'$(TmlAbi)' == ''">arm64-v8a</TmlAbi>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+
+    <!-- tModLoader and mods are JIT-compiled at runtime and use arbitrary BCL APIs -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <AndroidStoreUncompressedFileExtensions>.so</AndroidStoreUncompressedFileExtensions>
+    <MonoMod_ReallySkipCheckTargetRuntime>true</MonoMod_ReallySkipCheckTargetRuntime>
+
+    <!-- Public dev key (see build/README.md): lets CI builds update each other in place -->
+    <AndroidKeyStore>true</AndroidKeyStore>
+    <AndroidSigningKeyStore>$(MSBuildThisFileDirectory)../../build/tmldroid-dev.keystore</AndroidSigningKeyStore>
+    <AndroidSigningStorePass>tmldroid-dev</AndroidSigningStorePass>
+    <AndroidSigningKeyAlias>tmldroid</AndroidSigningKeyAlias>
+    <AndroidSigningKeyPass>tmldroid-dev</AndroidSigningKeyPass>
+
+    <TmlRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..'))</TmlRoot>
+    <TmlNativeDir>$(TmlRoot)native/out/$(TmlAbi)/</TmlNativeDir>
+    <TmlJavaDir>$(TmlRoot)native/out/java/</TmlJavaDir>
+  </PropertyGroup>
+
+  <!--
+    Same MonoMod / Cecil versions tModLoader v2026.9 ships (Libraries/), so tML binds to these
+    APK copies; MonoMod.Core is the bionic-patched one (build/MonoModAndroid.targets).
+  -->
+  <ItemGroup>
+    <PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.2" />
+    <PackageReference Include="Mono.Cecil" Version="0.11.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="$(TmlRoot)probes/MonoModProbe/Core/MonoModAndroidFix.cs" Link="Shared/MonoModAndroidFix.cs" />
+  </ItemGroup>
+
+  <!-- Native libraries (native/build-android-natives.sh) -->
+  <ItemGroup>
+    <AndroidNativeLibrary Include="$(TmlNativeDir)libSDL2.so;$(TmlNativeDir)libFNA3D.so;$(TmlNativeDir)libFAudio.so;$(TmlNativeDir)libmain.so" Abi="$(TmlAbi)" />
+    <AndroidNativeLibrary Include="$(TmlNativeDir)libtheorafile.so" Abi="$(TmlAbi)" Condition="Exists('$(TmlNativeDir)libtheorafile.so')" />
+    <EmbeddedResource Include="$(TmlNativeDir)libmm_gcc_s_shim.so" LogicalName="libmm_gcc_s_shim.so" />
+  </ItemGroup>
+
+  <!-- SDL2 Java glue + our activity -->
+  <ItemGroup>
+    <AndroidJavaSource Include="$(TmlJavaDir)**/*.java" Bind="false" />
+    <AndroidJavaSource Update="java/**/*.java" Bind="false" />
+  </ItemGroup>
+
+  <Target Name="TmlCheckInputs" BeforeTargets="_CollectJavaSourceForBinding;CoreCompile">
+    <Error Condition="!Exists('$(TmlNativeDir)libSDL2.so')" Text="Native libs missing in $(TmlNativeDir): run native/build-android-natives.sh (ABI=$(TmlAbi))" />
+    <Error Condition="!Exists('$(TmlJavaDir)org/libsdl/app/SDLActivity.java')" Text="SDL2 Java glue missing in $(TmlJavaDir)" />
+  </Target>
+
+  <Import Project="$(TmlRoot)build/MonoModAndroid.targets" />
+
+</Project>
