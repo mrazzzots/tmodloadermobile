@@ -31,7 +31,7 @@
     <!-- Keep our .so files uncompressed so the system loader can map them directly -->
     <AndroidStoreUncompressedFileExtensions>.so</AndroidStoreUncompressedFileExtensions>
 
-    <TmlRoot>$(MSBuildThisFileDirectory)../../../</TmlRoot>
+    <TmlRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', '..'))</TmlRoot>
     <TmlNativeDir>$(TmlRoot)native/out/$(TmlAbi)/</TmlNativeDir>
     <TmlJavaDir>$(TmlRoot)native/out/java/</TmlJavaDir>
     <TmlFnaProject>$(TmlRoot)native/src/FNA/FNA.Core.csproj</TmlFnaProject>
@@ -50,7 +50,7 @@
 
   <!-- SDL2's Java glue (same SDL version as libSDL2.so) and our activity -->
   <ItemGroup>
-    <AndroidJavaSource Include="$(TmlJavaDir)org/libsdl/app/*.java" Bind="false" />
+    <AndroidJavaSource Include="$(TmlJavaDir)**/*.java" Bind="false" />
     <AndroidJavaSource Include="java/**/*.java" Bind="false" />
   </ItemGroup>
 
@@ -58,6 +58,7 @@
     <Error Condition="!Exists('$(TmlFnaProject)')" Text="FNA sources missing: run tools/fetch-fna.sh" />
     <Error Condition="!Exists('$(TmlNativeDir)libSDL2.so')" Text="Native libs missing in $(TmlNativeDir): run native/build-android-natives.sh (ABI=$(TmlAbi))" />
     <Error Condition="!Exists('$(TmlJavaDir)org/libsdl/app/SDLActivity.java')" Text="SDL2 Java glue missing in $(TmlJavaDir)" />
+    <Message Importance="high" Text="TMLDroid Java sources: @(AndroidJavaSource->'%(Filename)', ', ')" />
   </Target>
 
 </Project>
