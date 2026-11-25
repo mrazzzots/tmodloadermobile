@@ -57,6 +57,11 @@ jobs:
           name: natives-arm64-v8a
           path: native/out/arm64-v8a
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: natives-x86_64
+          path: native/out/x86_64
+
       - name: Install Android dependencies
         run: >
           dotnet build probes/MonoModProbe/Android -t:InstallAndroidDependencies

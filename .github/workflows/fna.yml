@@ -1,0 +1,94 @@
+name: fna
+
+on:
+  push:
+    paths: ['probes/FnaProbe/**', 'native/**', 'tools/fetch-fna.sh', '.github/**']
+  workflow_dispatch:
+
+jobs:
+  natives:
+    uses: ./.github/workflows/natives.yml
+
+  apk:
+    needs: natives
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Install .NET Android workload
+        run: dotnet workload install android
+
+      - uses: actions/download-artifact@v4
+        with: { name: natives-arm64-v8a, path: native/out/arm64-v8a }
+      - uses: actions/download-artifact@v4
+        with: { name: natives-x86_64, path: native/out/x86_64 }
+      - uses: actions/download-artifact@v4
+        with: { name: sdl2-java, path: native/out/java }
+
+      - name: Fetch FNA sources
+        run: ./tools/fetch-fna.sh
+
+      - name: Install Android dependencies
+        run: >
+          dotnet build probes/FnaProbe/Android -t:InstallAndroidDependencies -f net10.0-android
+          -p:AndroidSdkDirectory="$ANDROID_HOME" -p:AcceptAndroidSDKLicenses=True
+
+      - name: Build APKs (arm64 for phones, x86_64 for the emulator)
+        run: |
+          clean() { rm -rf probes/FnaProbe/Android/obj probes/FnaProbe/Android/bin native/src/FNA/obj native/src/FNA/bin; }
+          mkdir -p out/apk out/emu
+          clean
+          dotnet publish probes/FnaProbe/Android -c Release -f net10.0-android \
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -o out/arm64
+          cp out/arm64/*-Signed.apk out/apk/FnaProbe-arm64.apk
+          clean
+          dotnet publish probes/FnaProbe/Android -c Release -f net10.0-android \
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:TmlAndroidRid=android-x64 -o out/x64
+          cp out/x64/*-Signed.apk out/emu/FnaProbe-x64.apk
+          for a in out/apk/*.apk out/emu/*.apk; do echo "== $a"; unzip -v "$a" | grep -E "lib/.*\.so|classes.dex" ; done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FnaProbe-apk
+          path: out/apk/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FnaProbe-emulator-apk
+          path: out/emu/*.apk
+          if-no-files-found: error
+
+  emulator:
+    needs: apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: actions/download-artifact@v4
+        with: { name: FnaProbe-emulator-apk, path: apk }
+      - name: Run FNA probe on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: ./.github/scripts/fna-emulator.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fna-emulator-logs
+          path: fna-emulator-out/

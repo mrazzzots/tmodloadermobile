@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.16)
+project(tmldroid_main C)
+add_library(main SHARED main.c)
+target_link_libraries(main PRIVATE log)
+set_target_properties(main PROPERTIES NO_SONAME OFF)

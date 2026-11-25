@@ -5,16 +5,20 @@
 #
 # Versions are pinned to what tModLoader `stable` uses (see docs/RESEARCH.md).
 #
-# Usage: ANDROID_NDK_HOME=/path/to/ndk ./native/build-android-natives.sh
-# Output: native/out/arm64-v8a/*.so
+# Usage: ANDROID_NDK_HOME=/path/to/ndk [ABI=arm64-v8a|x86_64] ./native/build-android-natives.sh
+# Output: native/out/<abi>/*.so and native/out/java/ (SDL2's Java glue, same SDL version)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC="$ROOT/src"
-BUILD="$ROOT/build"
-OUT="$ROOT/out/arm64-v8a"
-
-ABI="arm64-v8a"
+ABI="${ABI:-arm64-v8a}"            # arm64-v8a for phones, x86_64 for the CI emulator
+BUILD="$ROOT/build/$ABI"
+OUT="$ROOT/out/$ABI"
+case "$ABI" in
+  arm64-v8a) CLANG_TRIPLE=aarch64-linux-android ;;
+  x86_64)    CLANG_TRIPLE=x86_64-linux-android ;;
+  *) echo "error: unsupported ABI $ABI" >&2; exit 1 ;;
+esac
 API="${ANDROID_API:-29}"          # Android 10, matches SupportedOSPlatformVersion
 JOBS="${JOBS:-$(nproc 2>/dev/null || echo 4)}"
 
@@ -103,7 +107,7 @@ echo "==> Theorafile"
 THEORA_OK=1
 mkdir -p "$BUILD/theorafile"
 if ! make -C "$BUILD/theorafile" -f "$SRC/FNA/lib/Theorafile/Makefile" -j "$JOBS" \
-     CC="$CLANG --target=aarch64-linux-android$API" >/dev/null; then
+     CC="$CLANG --target=$CLANG_TRIPLE$API" >/dev/null; then
   echo "warning: Theorafile failed to build (video playback only), continuing" >&2
   THEORA_OK=0
 fi
@@ -114,6 +118,16 @@ cmake -S "$ROOT/gcc_s_shim" -B "$BUILD/gcc_s_shim" "${CMAKE_ANDROID[@]}" \
   -DLIBUNWIND_SOURCE_DIR="$SRC/llvm/libunwind"
 cmake --build "$BUILD/gcc_s_shim" -j "$JOBS"
 
+# --- 6b. libmain.so: SDL_main -> managed entry point --------------------------------
+echo "==> libmain (SDL_main bridge)"
+cmake -S "$ROOT/sdl_main_bridge" -B "$BUILD/sdl_main_bridge" "${CMAKE_ANDROID[@]}"
+cmake --build "$BUILD/sdl_main_bridge" -j "$JOBS"
+
+# --- 6c. SDL2 Java glue (must match the native SDL2 version exactly) -------------------
+rm -rf "$ROOT/out/java"
+mkdir -p "$ROOT/out/java"
+cp -r "$SRC/SDL2/android-project/app/src/main/java/org" "$ROOT/out/java/"
+
 # --- 7. collect + strip ---------------------------------------------------------------
 echo "==> collecting into $OUT"
 rm -f "$OUT"/*.so
@@ -123,6 +137,7 @@ cp "$(find "$BUILD/fna3d" -maxdepth 1 -name 'libFNA3D*.so' | head -n1)" "$OUT/li
 cp "$(find "$BUILD/faudio" -maxdepth 1 -name 'libFAudio*.so' | head -n1)" "$OUT/libFAudio.so"
 [[ $THEORA_OK == 1 ]] && cp "$BUILD/theorafile/libtheorafile.so" "$OUT/libtheorafile.so"
 cp "$BUILD/gcc_s_shim/libmm_gcc_s_shim.so" "$OUT/libmm_gcc_s_shim.so"
+cp "$BUILD/sdl_main_bridge/libmain.so" "$OUT/libmain.so"
 for so in "$OUT"/*.so; do "$STRIP" --strip-unneeded "$so"; done
 
 # --- 8. verify: names, sonames and dependencies must be loadable from an APK ---------
@@ -161,4 +176,5 @@ if [[ $status != 0 ]]; then
   echo "verification FAILED" >&2
   exit 1
 fi
-echo "OK: $(ls "$OUT" | tr '\n' ' ')"
+echo "OK ($ABI): $(ls "$OUT" | tr '\n' ' ')"
+echo "Java glue: $(find "$ROOT/out/java" -name '*.java' | wc -l) files"

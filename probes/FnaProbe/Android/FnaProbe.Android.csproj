@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>29</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>TMLDroid.FnaProbe</RootNamespace>
+
+    <ApplicationId>io.github.tmldroid.fnaprobe</ApplicationId>
+    <ApplicationTitle>FNA Probe</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+
+    <!-- CI builds an extra android-x64 APK for the emulator with -p:TmlAndroidRid=android-x64 -->
+    <TmlAndroidRid Condition="'$(TmlAndroidRid)' == ''">android-arm64</TmlAndroidRid>
+    <RuntimeIdentifiers>$(TmlAndroidRid)</RuntimeIdentifiers>
+    <TmlAbi Condition="'$(TmlAndroidRid)' == 'android-x64'">x86_64</TmlAbi>
+    <TmlAbi Condition="'$(TmlAbi)' == ''">arm64-v8a</TmlAbi>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+
+    <!-- Same runtime shape tModLoader needs: JIT, no trimming, no AOT -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+
+    <!-- Keep our .so files uncompressed so the system loader can map them directly -->
+    <AndroidStoreUncompressedFileExtensions>.so</AndroidStoreUncompressedFileExtensions>
+
+    <TmlRoot>$(MSBuildThisFileDirectory)../../../</TmlRoot>
+    <TmlNativeDir>$(TmlRoot)native/out/$(TmlAbi)/</TmlNativeDir>
+    <TmlJavaDir>$(TmlRoot)native/out/java/</TmlJavaDir>
+    <TmlFnaProject>$(TmlRoot)native/src/FNA/FNA.Core.csproj</TmlFnaProject>
+  </PropertyGroup>
+
+  <!-- Managed FNA (tModLoader's fork), fetched by tools/fetch-fna.sh -->
+  <ItemGroup>
+    <ProjectReference Include="$(TmlFnaProject)" />
+  </ItemGroup>
+
+  <!-- Native libraries from native/build-android-natives.sh -->
+  <ItemGroup>
+    <AndroidNativeLibrary Include="$(TmlNativeDir)libSDL2.so;$(TmlNativeDir)libFNA3D.so;$(TmlNativeDir)libFAudio.so;$(TmlNativeDir)libmain.so" Abi="$(TmlAbi)" />
+    <AndroidNativeLibrary Include="$(TmlNativeDir)libtheorafile.so" Abi="$(TmlAbi)" Condition="Exists('$(TmlNativeDir)libtheorafile.so')" />
+  </ItemGroup>
+
+  <!-- SDL2's Java glue (same SDL version as libSDL2.so) and our activity -->
+  <ItemGroup>
+    <AndroidJavaSource Include="$(TmlJavaDir)org/libsdl/app/*.java" Bind="false" />
+    <AndroidJavaSource Include="java/**/*.java" Bind="false" />
+  </ItemGroup>
+
+  <Target Name="TmlCheckInputs" BeforeTargets="Build">
+    <Error Condition="!Exists('$(TmlFnaProject)')" Text="FNA sources missing: run tools/fetch-fna.sh" />
+    <Error Condition="!Exists('$(TmlNativeDir)libSDL2.so')" Text="Native libs missing in $(TmlNativeDir): run native/build-android-natives.sh (ABI=$(TmlAbi))" />
+    <Error Condition="!Exists('$(TmlJavaDir)org/libsdl/app/SDLActivity.java')" Text="SDL2 Java glue missing in $(TmlJavaDir)" />
+  </Target>
+
+</Project>

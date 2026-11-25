@@ -43,7 +43,9 @@
 
   <!-- libgcc_s replacement for MonoMod's native helper; produced by native/build-android-natives.sh -->
   <PropertyGroup>
-    <ShimLib>$(MSBuildThisFileDirectory)../../../native/out/arm64-v8a/libmm_gcc_s_shim.so</ShimLib>
+    <TmlAbi Condition="'$(TmlAndroidRid)' == 'android-x64'">x86_64</TmlAbi>
+    <TmlAbi Condition="'$(TmlAbi)' == ''">arm64-v8a</TmlAbi>
+    <ShimLib>$(MSBuildThisFileDirectory)../../../native/out/$(TmlAbi)/libmm_gcc_s_shim.so</ShimLib>
   </PropertyGroup>
   <ItemGroup Condition="Exists('$(ShimLib)')">
     <!-- Loaded by absolute path at runtime: does not depend on how the APK stores native libs -->

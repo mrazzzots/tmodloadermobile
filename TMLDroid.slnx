@@ -3,6 +3,7 @@
     <Project Path="probes/MonoModProbe/Core/MonoModProbe.Core.csproj" />
     <Project Path="probes/MonoModProbe/Desktop/MonoModProbe.Desktop.csproj" />
     <Project Path="probes/MonoModProbe/Android/MonoModProbe.Android.csproj" />
+    <Project Path="probes/FnaProbe/Android/FnaProbe.Android.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/MonoModAndroidPatcher/MonoModAndroidPatcher.csproj" />
