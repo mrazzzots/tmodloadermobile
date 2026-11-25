@@ -1,0 +1,35 @@
+name: natives
+
+on:
+  push:
+    paths: ['native/**', '.github/workflows/natives.yml']
+  pull_request:
+    paths: ['native/**', '.github/workflows/natives.yml']
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  android-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Cache sources
+        uses: actions/cache@v4
+        with:
+          path: native/src
+          key: natives-src-${{ hashFiles('native/build-android-natives.sh') }}
+
+      - name: Build SDL2, FNA3D, FAudio, Theorafile, gcc_s shim
+        run: |
+          export ANDROID_NDK_HOME="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          ./native/build-android-natives.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: natives-arm64-v8a
+          path: native/out/arm64-v8a/*.so
+          if-no-files-found: error

@@ -1,0 +1,7 @@
+{
+  global:
+    _Unwind_*;
+    mm_gcc_s_shim_version;
+  local:
+    *;
+};

@@ -1,0 +1,84 @@
+name: probe
+
+on:
+  push:
+    paths: ['probes/**', 'native/**', '.github/workflows/**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Control runs on platforms MonoMod officially supports. If these fail, the probe is wrong,
+  # not Android. arm64 Linux/macOS exercise the same arm64 detour code Android will use.
+  desktop:
+    name: desktop (${{ matrix.os }}, MonoMod ${{ matrix.monomod }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.monomod != '25.3.2' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+        monomod: ['25.3.2', '*']   # tML stable pin, and newest MonoMod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Run probe
+        run: dotnet run -c Release --project probes/MonoModProbe/Desktop -p:MonoModVersion="${{ matrix.monomod }}"
+        shell: bash
+
+  natives:
+    uses: ./.github/workflows/natives.yml
+
+  android-apk:
+    needs: natives
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Install .NET Android workload
+        run: dotnet workload install android
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: natives-arm64-v8a
+          path: native/out/arm64-v8a
+
+      - name: Install Android dependencies
+        run: >
+          dotnet build probes/MonoModProbe/Android -t:InstallAndroidDependencies
+          -f net10.0-android
+          -p:AndroidSdkDirectory="$ANDROID_HOME"
+          -p:AcceptAndroidSDKLicenses=True
+
+      - name: Build APK
+        run: >
+          dotnet publish probes/MonoModProbe/Android -c Release -f net10.0-android
+          -p:AndroidSdkDirectory="$ANDROID_HOME"
+          -o out/apk
+
+      - name: Check native libs inside the APK
+        run: |
+          apk="$(ls out/apk/*-Signed.apk | head -n1)"
+          echo "APK: $apk"
+          unzip -l "$apk" | grep -E 'lib/arm64-v8a/.*\.so' || true
+          unzip -l "$apk" | grep -q 'lib/arm64-v8a/libmm_gcc_s_shim.so'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MonoModProbe-apk
+          path: out/apk/*-Signed.apk
+          if-no-files-found: error

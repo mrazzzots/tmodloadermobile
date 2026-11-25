@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>29</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>TMLDroid.ProbeApp</RootNamespace>
+
+    <ApplicationId>io.github.tmldroid.monomodprobe</ApplicationId>
+    <ApplicationTitle>MonoMod Probe</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+
+    <!-- arm64 only: that is what tModLoader on Android will target -->
+    <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+
+    <!--
+      Mirror the real tModLoader situation: mod code is loaded at runtime and JIT-compiled.
+      No trimming (mods reference arbitrary BCL APIs), no AOT (hooks must patch JIT code).
+    -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <AndroidStripILAfterAOT>false</AndroidStripILAfterAOT>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Core/MonoModProbe.Core.csproj" />
+  </ItemGroup>
+
+  <!-- libgcc_s replacement for MonoMod's native helper; produced by native/build-android-natives.sh -->
+  <PropertyGroup>
+    <ShimLib>$(MSBuildThisFileDirectory)../../../native/out/arm64-v8a/libmm_gcc_s_shim.so</ShimLib>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(ShimLib)')">
+    <AndroidNativeLibrary Include="$(ShimLib)" Abi="arm64-v8a" />
+  </ItemGroup>
+  <Target Name="WarnNoShim" BeforeTargets="Build" Condition="!Exists('$(ShimLib)')">
+    <Warning Text="libmm_gcc_s_shim.so not found at $(ShimLib). The APK will run, but the 'with fix' mode will report the shim as missing. Run native/build-android-natives.sh first." />
+  </Target>
+
+</Project>

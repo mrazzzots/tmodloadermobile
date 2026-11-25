@@ -1,0 +1,28 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+*.binlog
+
+# Native build
+native/build/
+native/src/
+native/out/
+
+# Game files must NEVER be committed
+**/Content/
+**/tModLoader.dll
+**/Terraria.exe
+**/*.tmod
+**/*.xnb
+**/*.wld
+**/*.plr
+
+# Android
+*.apk
+*.aab
+*.keystore
+local.properties
