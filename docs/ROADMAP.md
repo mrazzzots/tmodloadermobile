@@ -6,10 +6,10 @@ arm64, Android 10+. Тестовое устройство: iQOO Neo 9S Pro+.
 ## Этап 1 — PoC
 
 - [ ] **1.1 MonoMod на Android** (`probes/MonoModProbe`) — точка «да или нет».
-  - [ ] desktop x64 / arm64 Linux в CI зелёные (контроль, что тест корректен)
+  - [x] desktop x64 / arm64 Linux / Windows в CI зелёные (контроль, что тест корректен)
   - [ ] на телефоне: режим «как есть» (ожидаем `NotImplementedException`)
   - [ ] на телефоне: с фиксом (подмена ОС + HelperDropPath + замена libgcc_s)
-- [ ] **1.2 Нативки** arm64-v8a: SDL2, FNA3D, FAudio, Theorafile собираются в CI.
+- [x] **1.2 Нативки** arm64-v8a: SDL2, FNA3D, FAudio, Theorafile собираются в CI.
 - [ ] **1.3 FNA hello world** на телефоне: SDLActivity + FNA, синий экран и спрайт.
 - [ ] **1.4 tModLoader до главного меню**: импорт файлов, заглушка Steam, без Steam.
 - [ ] **1.5 ExampleMod → Calamity**: загрузка, вход в мир, замеры RAM/FPS, список упавших IL-хуков.
