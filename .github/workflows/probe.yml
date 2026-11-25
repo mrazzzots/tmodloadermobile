@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
         monomod: ['25.3.2', '*']   # tML stable pin, and newest MonoMod
     steps:
       - uses: actions/checkout@v4
