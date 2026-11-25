@@ -55,7 +55,9 @@
 
 - В NuGet-пакете MonoMod есть MSBuild-проверка: сборка под `net10.0-android` падает с ошибкой
   «MonoMod.Core and MonoMod.RuntimeDetour do not support the net10.0-android runtime».
-  Отключается свойством `MonoMod_CheckTargetRuntime=false`.
+  Проверка срабатывает на любой TFM новее .NET 9 (это про CoreCLR; на Android работает Mono).
+  Текст ошибки предлагает `MonoMod_CheckTargetRuntime=false`, но реально читается свойство
+  **`MonoMod_ReallySkipCheckTargetRuntime=true`** (`tools/MonoMod.CheckTargetRuntime.targets`).
 - Хуки на generic-методы MonoMod не поддерживает ни на одной платформе
   («generic hooks are not supported»), это общее ограничение tML, а не Android.
 

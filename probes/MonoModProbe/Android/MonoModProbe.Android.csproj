@@ -28,8 +28,11 @@
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
     <AndroidStripILAfterAOT>false</AndroidStripILAfterAOT>
 
-    <!-- MonoMod refuses to build for *-android by default. Testing exactly that is the point of this probe. -->
-    <MonoMod_CheckTargetRuntime>false</MonoMod_CheckTargetRuntime>
+    <!--
+      MonoMod 25.x errors out for any TFM newer than .NET 9 (a CoreCLR concern; Android runs Mono).
+      The error text says "MonoMod_CheckTargetRuntime", but the property actually read is this one.
+    -->
+    <MonoMod_ReallySkipCheckTargetRuntime>true</MonoMod_ReallySkipCheckTargetRuntime>
   </PropertyGroup>
 
   <ItemGroup>
