@@ -2,7 +2,7 @@ name: probe
 
 on:
   push:
-    paths: ['probes/**', 'native/**', 'tools/**', '.github/workflows/**']
+    paths: ['probes/**', 'native/**', 'tools/**', '.github/**']
   pull_request:
   workflow_dispatch:
 
