@@ -112,6 +112,40 @@ public sealed class ProbeGame : Game
             batch.Draw(tile, new Rectangle(0, 0, 64, 64), Color.White);
             batch.End();
         });
+        try
+        {
+            var back = new Color[16 * 16];
+            tile.GetData(back);
+            Log($"selftest texture-readback: white texels {back.Count(c => c == Color.White)}/256 (expect 128)");
+        }
+        catch (Exception e) { Log("selftest texture-readback FAILED: " + e.Message); }
+
+        var quad = new[]
+        {
+            new VertexPositionColorTexture(new Vector3(-1, -1, 0), Color.Red, new Vector2(0, 1)),
+            new VertexPositionColorTexture(new Vector3(-1, 1, 0), Color.Red, new Vector2(0, 0)),
+            new VertexPositionColorTexture(new Vector3(1, -1, 0), Color.Red, new Vector2(1, 1)),
+            new VertexPositionColorTexture(new Vector3(1, 1, 0), Color.Red, new Vector2(1, 0)),
+        };
+        Check("basiceffect-vertexcolor", () =>
+        {
+            using var fx = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true };
+            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+            GraphicsDevice.BlendState = BlendState.Opaque;
+            GraphicsDevice.DepthStencilState = DepthStencilState.None;
+            fx.CurrentTechnique.Passes[0].Apply();
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleStrip, quad, 0, 2);
+        });
+        Check("basiceffect-texture", () =>
+        {
+            using var fx = new BasicEffect(GraphicsDevice) { TextureEnabled = true, Texture = tile };
+            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+            GraphicsDevice.BlendState = BlendState.Opaque;
+            GraphicsDevice.DepthStencilState = DepthStencilState.None;
+            GraphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
+            fx.CurrentTechnique.Passes[0].Apply();
+            GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleStrip, quad, 0, 2);
+        });
         Check("spritebatch-tinted", () =>
         {
             batch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
