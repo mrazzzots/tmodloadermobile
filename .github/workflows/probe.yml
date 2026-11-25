@@ -70,6 +70,26 @@ jobs:
           -p:AndroidSdkDirectory="$ANDROID_HOME"
           -o out/apk
 
+      # x86_64 builds run natively on the CI emulator (no ARM translation): one with the
+      # MonoMod.Core patch and one without, to isolate packaging problems.
+      - name: Build x86_64 APKs for the emulator
+        run: |
+          dotnet publish probes/MonoModProbe/Android -c Release -f net10.0-android \
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:RuntimeIdentifiers=android-x64 \
+            -p:BaseIntermediateOutputPath=obj-x64-patched/ -o out/apk-x64-patched
+          dotnet publish probes/MonoModProbe/Android -c Release -f net10.0-android \
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:RuntimeIdentifiers=android-x64 \
+            -p:TmlSkipMonoModPatch=true \
+            -p:BaseIntermediateOutputPath=obj-x64-plain/ -o out/apk-x64-plain
+          mkdir -p out/emu
+          cp out/apk-x64-patched/*-Signed.apk out/emu/probe-x64-patched.apk
+          cp out/apk-x64-plain/*-Signed.apk out/emu/probe-x64-plain.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emulator-apks
+          path: out/emu/*.apk
+
       - name: Check native libs inside the APK
         run: |
           apk="$(ls out/apk/*-Signed.apk | head -n1)"
@@ -103,7 +123,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: MonoModProbe-apk
+          name: emulator-apks
           path: apk
 
       - name: Run probe on emulator

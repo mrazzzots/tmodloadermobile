@@ -62,7 +62,7 @@
     <TmlPatchedMonoModCore>$(TmlPatchedDir)MonoMod.Core.dll</TmlPatchedMonoModCore>
   </PropertyGroup>
 
-  <Target Name="TmlPatchMonoModCore" AfterTargets="ResolvePackageAssets">
+  <Target Name="TmlPatchMonoModCore" AfterTargets="ResolvePackageAssets" Condition="'$(TmlSkipMonoModPatch)' != 'true'">
     <ItemGroup>
       <_TmlMMCore Include="@(RuntimeCopyLocalItems)" Condition="'%(Filename)%(Extension)' == 'MonoMod.Core.dll'" />
     </ItemGroup>
@@ -77,7 +77,7 @@
   </Target>
 
   <!-- Safety net: replace any copy of the unpatched DLL that reached later item lists. -->
-  <Target Name="TmlReplaceMonoModCoreLate" AfterTargets="ResolveAssemblyReferences;ComputeResolvedFilesToPublishList">
+  <Target Name="TmlReplaceMonoModCoreLate" AfterTargets="ResolveAssemblyReferences;ComputeResolvedFilesToPublishList" Condition="'$(TmlSkipMonoModPatch)' != 'true'">
     <ItemGroup>
       <_TmlLateRCL Include="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)%(Extension)' == 'MonoMod.Core.dll' and '%(FullPath)' != '$([System.IO.Path]::GetFullPath($(TmlPatchedMonoModCore)))'" />
       <ReferenceCopyLocalPaths Remove="@(_TmlLateRCL)" />
