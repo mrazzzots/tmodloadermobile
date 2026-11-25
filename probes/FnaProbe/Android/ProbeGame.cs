@@ -29,6 +29,8 @@ public sealed class ProbeGame : Game
     readonly List<double> fpsSamples = new();
     bool reported;
     readonly Stopwatch drawTime = new();
+    readonly List<(string Name, bool Ok)> selfTest = new();
+    BasicEffect overlayFx = null!;
 
     public ProbeGame(bool autorun)
     {
@@ -59,6 +61,8 @@ public sealed class ProbeGame : Game
 
         target = new RenderTarget2D(GraphicsDevice, 320, 180);
         SelfTest();
+        overlayFx = new BasicEffect(GraphicsDevice) { VertexColorEnabled = true };
+        Log("selftest summary: " + string.Join(" ", selfTest.Select(t => $"{t.Name}={(t.Ok ? "OK" : "FAIL")}")));
 
         for (var i = 0; i < SpriteCount; i++)
         {
@@ -98,10 +102,12 @@ public sealed class ProbeGame : Game
                 var lit = px.Count(c => c.R + c.G + c.B > 30);
                 var mid = px[32 * 64 + 32];
                 Log($"selftest {name}: lit {lit}/{px.Length}, center=({mid.R},{mid.G},{mid.B},{mid.A}), corner=({px[0].R},{px[0].G},{px[0].B})");
+                selfTest.Add((name, lit > 0));
             }
             catch (Exception e)
             {
                 Log($"selftest {name} FAILED: {e.GetType().Name}: {e.Message}");
+                selfTest.Add((name, false));
             }
         }
 
@@ -265,8 +271,39 @@ public sealed class ProbeGame : Game
         for (var i = 0; i < SpriteCount; i++)
             batch.Draw(tile, pos[i], Color.White);
         batch.End();
+        DrawSelfTestOverlay();
         base.Draw(gameTime);
         drawTime.Stop();
+    }
+
+    /// <summary>
+    /// One square per self test in the top-left corner: green = pass, red = fail. Drawn with
+    /// non-indexed user primitives (the path verified to work) so it shows even if SpriteBatch fails.
+    /// </summary>
+    void DrawSelfTestOverlay()
+    {
+        var pp = GraphicsDevice.PresentationParameters;
+        float w = pp.BackBufferWidth, h = pp.BackBufferHeight;
+        const float size = 48, gap = 12;
+        var verts = new List<VertexPositionColor>();
+        void Quad(float x, float y, float s, Color c)
+        {
+            Vector3 P(float px, float py) => new(px / w * 2 - 1, 1 - py / h * 2, 0);
+            verts.Add(new(P(x, y), c)); verts.Add(new(P(x + s, y), c)); verts.Add(new(P(x, y + s), c));
+            verts.Add(new(P(x + s, y), c)); verts.Add(new(P(x + s, y + s), c)); verts.Add(new(P(x, y + s), c));
+        }
+        for (var i = 0; i < selfTest.Count; i++)
+        {
+            var x = gap + i * (size + gap);
+            Quad(x - 3, gap - 3, size + 6, Color.Black);
+            Quad(x, gap, size, selfTest[i].Ok ? Color.LimeGreen : Color.Red);
+        }
+        if (verts.Count == 0) return;
+        GraphicsDevice.BlendState = BlendState.Opaque;
+        GraphicsDevice.DepthStencilState = DepthStencilState.None;
+        GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+        overlayFx.CurrentTechnique.Passes[0].Apply();
+        GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, verts.ToArray(), 0, verts.Count / 3);
     }
 
     static void Log(string s) => Console.WriteLine("FNAPROBE " + s);
