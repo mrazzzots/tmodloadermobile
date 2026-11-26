@@ -1,0 +1,21 @@
+name: diag
+on: workflow_dispatch
+jobs:
+  steamworks:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sL -o sw.nupkg https://api.nuget.org/v3-flatcontainer/steamworks.net.anycpu/2025.162.4/steamworks.net.anycpu.2025.162.4.nupkg
+          unzip -q sw.nupkg -d pkg; find pkg -type f | sort; ls -la pkg/lib/*/
+          python3 - <<'PY'
+          import struct,glob
+          for f in glob.glob('pkg/lib/*/*.dll'):
+              d=open(f,'rb').read(); pe=struct.unpack_from('<I',d,0x3c)[0]
+              mach=struct.unpack_from('<H',d,pe+4)[0]; ch=struct.unpack_from('<H',d,pe+22)[0]
+              opt=pe+24; magic=struct.unpack_from('<H',d,opt)[0]
+              ddir=opt+(112 if magic==0x20b else 96)
+              clirva,clisz=struct.unpack_from('<II',d,ddir+14*8)
+              print(f,'machine',hex(mach),'chars',hex(ch),'magic',hex(magic),'cli',hex(clirva),clisz)
+          PY
+          sudo apt-get install -y -qq mono-utils >/dev/null 2>&1 || true
+          for f in pkg/lib/*/*.dll; do echo "== $f"; monodis --assembly "$f" 2>&1 | head -20; monodis --assemblyref "$f" 2>&1 | head -30; done
