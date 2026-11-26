@@ -72,6 +72,9 @@ public static unsafe class GameEntry
         Directory.SetCurrentDirectory(Paths.TModLoader);
         SetEnv("HOME", Paths.Root);
         SetEnv("XDG_DATA_HOME", Path.Combine(Paths.Root, "xdg"));
+        // FNA opens two output devices (SoundEffect master voice + XACT AudioEngine). SDL's default
+        // Android backend, OpenSL ES, allows only one ("Audio device already open"); AAudio allows many.
+        SetEnv("SDL_AUDIODRIVER", "aaudio,openslES");
         SetEnv("TMPDIR", Paths.InternalCache); // natives written to temp may be dlopen'ed
 
         // 3. Managed dependencies from Libraries/.
