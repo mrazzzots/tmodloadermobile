@@ -4,34 +4,61 @@ using Android.Runtime;
 namespace TMLDroid;
 
 /// <summary>
-/// Tells the Java overlay whether a world is loaded (Terraria.Main.gameMenu == false), so the
-/// joystick and buttons are shown in game only and the menus stay clean.
+/// Bridge between the Java overlay (TouchControls) and Terraria:
+///  - tells the overlay whether a world is loaded (Main.gameMenu == false), so the joystick and
+///    buttons are shown in game only;
+///  - executes overlay commands (in-game menu, zoom) on Terraria's main thread.
 /// </summary>
 public static class GameState
 {
+    const int CmdMenu = 1, CmdZoomIn = 2, CmdZoomOut = 3;
+
     public static void StartWatching(Assembly tml)
     {
-        // Reading Main.gameMenu would run Main's (huge, order-sensitive) static constructor on this
-        // thread if the game has not touched Main yet. Program.LoadedEverything (Program's cctor
-        // already ran) turns true only after Main.LoadContent, so wait for it first.
+        // Reading Main.* would run Main's (huge, order-sensitive) static constructor on this thread
+        // if the game has not touched Main yet. Program.LoadedEverything (Program's cctor already ran)
+        // turns true only after Main.LoadContent, so nothing of Main is read before that.
         var loaded = tml.GetType("Terraria.Program")?.GetField("LoadedEverything", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-        var gameMenu = tml.GetType("Terraria.Main")?.GetField("gameMenu", BindingFlags.Public | BindingFlags.Static);
-        if (gameMenu == null || loaded == null)
-        {
-            HostLog.Info("GameState: Program.LoadedEverything/Main.gameMenu not found, controls always shown");
-            new Thread(() => { Thread.Sleep(3000); Notify(true); }) { IsBackground = true }.Start();
-            return;
-        }
+        var main = tml.GetType("Terraria.Main");
+        var gameMenu = main?.GetField("gameMenu", BindingFlags.Public | BindingFlags.Static);
+        var zoom = main?.GetField("GameZoomTarget", BindingFlags.Public | BindingFlags.Static);
+        var queue = main?.GetMethod("QueueMainThreadAction", BindingFlags.Public | BindingFlags.Static, [typeof(Action)]);
+        var openOptions = tml.GetType("Terraria.IngameOptions")?.GetMethod("Open", BindingFlags.Public | BindingFlags.Static, Type.EmptyTypes);
+        HostLog.Info($"GameState: loaded={loaded != null} gameMenu={gameMenu != null} zoom={zoom != null} queue={queue != null} options={openOptions != null}");
 
         new Thread(() =>
         {
             bool? last = null;
+            int tick = 0;
             while (true)
             {
-                Thread.Sleep(250);
+                Thread.Sleep(50);
                 try
                 {
-                    if (!(bool)loaded.GetValue(null)!) continue;
+                    if (loaded != null && !(bool)loaded.GetValue(null)!) continue;
+
+                    for (int cmd = Poll(); cmd != 0; cmd = Poll())
+                    {
+                        if (queue == null) break;
+                        Action action = cmd switch
+                        {
+                            CmdMenu => () =>
+                            {
+                                if (gameMenu != null && (bool)gameMenu.GetValue(null)!) return; // already in the main menu
+                                openOptions?.Invoke(null, null);
+                            },
+                            CmdZoomIn or CmdZoomOut => () =>
+                            {
+                                if (zoom == null) return;
+                                var z = (float)zoom.GetValue(null)! + (cmd == CmdZoomIn ? 0.1f : -0.1f);
+                                zoom.SetValue(null, Math.Clamp(z, 1f, 2f));
+                            },
+                            _ => () => { },
+                        };
+                        queue.Invoke(null, [action]);
+                    }
+
+                    if (++tick % 5 != 0 || gameMenu == null) continue;
                     var inGame = !(bool)gameMenu.GetValue(null)!;
                     if (inGame == last) continue;
                     Notify(inGame);
@@ -47,17 +74,27 @@ public static class GameState
         }) { IsBackground = true, Name = "TMLDroid state" }.Start();
     }
 
-    static IntPtr cls, method;
+    static IntPtr cls, notifyMethod, pollMethod;
+
+    static void EnsureClass()
+    {
+        if (cls != IntPtr.Zero) return;
+        // .NET for Android's JNIEnv.FindClass already returns a *global* reference
+        // (deleting it as a local one aborts the process: "Attempt to delete global reference").
+        cls = JNIEnv.FindClass("io/github/tmldroid/GameActivity");
+        notifyMethod = JNIEnv.GetStaticMethodID(cls, "setInGame", "(Z)V");
+        pollMethod = JNIEnv.GetStaticMethodID(cls, "pollCommand", "()I");
+    }
 
     static void Notify(bool inGame)
     {
-        if (cls == IntPtr.Zero)
-        {
-            // .NET for Android's JNIEnv.FindClass already returns a *global* reference
-            // (deleting it as a local one aborts the process: "Attempt to delete global reference").
-            cls = JNIEnv.FindClass("io/github/tmldroid/GameActivity");
-            method = JNIEnv.GetStaticMethodID(cls, "setInGame", "(Z)V");
-        }
-        JNIEnv.CallStaticVoidMethod(cls, method, new JValue(inGame));
+        EnsureClass();
+        JNIEnv.CallStaticVoidMethod(cls, notifyMethod, new JValue(inGame));
+    }
+
+    static int Poll()
+    {
+        EnsureClass();
+        return JNIEnv.CallStaticIntMethod(cls, pollMethod);
     }
 }

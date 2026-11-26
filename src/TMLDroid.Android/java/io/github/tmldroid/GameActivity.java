@@ -1,9 +1,17 @@
 package io.github.tmldroid;
 
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
+
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.libsdl.app.SDLActivity;
 
@@ -16,6 +24,9 @@ public class GameActivity extends SDLActivity {
     private static native int nativeToggleKeyboard();
 
     private static TouchControls controls;
+    private static final ConcurrentLinkedQueue<Integer> commands = new ConcurrentLinkedQueue<>();
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable hideBars = this::hideSystemBars;
 
     @Override
     protected String[] getLibraries() {
@@ -38,14 +49,59 @@ public class GameActivity extends SDLActivity {
         if (mLayout == null) return;
         controls = new TouchControls(this, () -> {
             try { nativeToggleKeyboard(); } catch (Throwable ignored) { }
-        });
+        }, commands::add);
         mLayout.addView(controls, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        hideSystemBars();
+        getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(v -> {
+            if ((v & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
+                handler.removeCallbacks(hideBars);
+                handler.postDelayed(hideBars, 2000);
+            }
+        });
         if (mSurface != null) {
             // keep SDL's own touch handling, but remember the last position for the right-click button
             mSurface.setOnTouchListener((v, e) -> {
                 if (controls != null) controls.onGameTouch(e);
                 return mSurface.onTouch(v, e);
             });
+        }
+    }
+
+    // ---- immersive full screen: SDL shows the system bars for a non-fullscreen window ----
+
+    @SuppressWarnings("deprecation")
+    private void hideSystemBars() {
+        if (Build.VERSION.SDK_INT >= 28) {
+            WindowManager.LayoutParams a = getWindow().getAttributes();
+            a.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(a);
+        }
+        View decor = getWindow().getDecorView();
+        decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        if (Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+            WindowInsetsController c = getWindow().getInsetsController();
+            if (c != null) {
+                c.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                c.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+            }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        handler.postDelayed(hideBars, 300);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            hideSystemBars();
+            handler.postDelayed(hideBars, 1000); // SDL may re-show them while creating its window
         }
     }
 
@@ -66,6 +122,12 @@ public class GameActivity extends SDLActivity {
             return true;
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    /** Polled by managed code (TMLDroid.GameState): next overlay command or 0. */
+    public static int pollCommand() {
+        Integer c = commands.poll();
+        return c == null ? 0 : c;
     }
 
     /** Called from managed code (TMLDroid.GameState) when Terraria enters or leaves a world. */
