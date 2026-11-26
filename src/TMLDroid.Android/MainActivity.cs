@@ -19,9 +19,10 @@ namespace TMLDroid;
 public class MainActivity : Activity
 {
     const int PickZip = 1;
+    const int PickMods = 2;
 
     TextView status = null!;
-    Button importButton = null!, finishButton = null!, playButton = null!, shareButton = null!;
+    Button importButton = null!, finishButton = null!, playButton = null!, shareButton = null!, modsButton = null!;
     bool busy;
 
     protected override void OnCreate(Bundle? savedInstanceState)
@@ -48,6 +49,8 @@ public class MainActivity : Activity
             return $"Готово: {summary.Files} файлов, Terraria {summary.TerrariaVersion}.";
         });
         playButton = new Button(this) { Text = "Играть" };
+        modsButton = new Button(this) { Text = "Добавить моды (.tmod)" };
+        modsButton.Click += (_, _) => PickModFiles();
         shareButton = new Button(this) { Text = "Поделиться логами" };
         importButton.Click += (_, _) => PickArchive();
         playButton.Click += (_, _) => Play();
@@ -59,6 +62,7 @@ public class MainActivity : Activity
         root.AddView(importButton);
         root.AddView(finishButton);
         root.AddView(playButton);
+        root.AddView(modsButton);
         root.AddView(shareButton);
         var scroll = new ScrollView(this);
         scroll.AddView(root);
@@ -81,16 +85,67 @@ public class MainActivity : Activity
             status.Text = $"Импортировано {summary.ImportedAt:dd.MM.yyyy HH:mm}\n" +
                           $"Terraria: {summary.TerrariaVersion}\n" +
                           $"Файлов: {summary.Files}, {summary.Bytes >> 20} МБ\n" +
-                          $"Моды: {(summary.Mods.Length == 0 ? "нет" : string.Join(", ", summary.Mods))}\n" +
+                          $"Моды: {InstalledMods()}\n" +
                           (summary.PatchVersion != TmlPatcher.PatchVersion ? "Патчи tModLoader устарели — обновятся при запуске.\n" : "") +
                           "\nПервый запуск без включённых модов; Calamity включается в меню «Моды».";
             playButton.Enabled = !busy;
         }
         importButton.Enabled = !busy;
+        modsButton.Enabled = !busy && summary != null;
         finishButton.Visibility = Importer.CanFinish ? ViewStates.Visible : ViewStates.Gone;
         finishButton.Enabled = !busy;
         if (summary == null && Importer.CanFinish)
             status.Text = "Файлы распакованы, но импорт не завершён. Нажмите «Завершить импорт».";
+    }
+
+    static string InstalledMods()
+    {
+        if (!Directory.Exists(Paths.SavesMods)) return "нет";
+        var names = Directory.EnumerateFiles(Paths.SavesMods, "*.tmod").Select(Path.GetFileNameWithoutExtension).OrderBy(n => n).ToArray();
+        return names.Length == 0 ? "нет" : string.Join(", ", names);
+    }
+
+    void PickModFiles()
+    {
+        var intent = new Intent(Intent.ActionOpenDocument);
+        intent.AddCategory(Intent.CategoryOpenable);
+        intent.SetType("*/*");
+        intent.PutExtra(Intent.ExtraAllowMultiple, true);
+        StartActivityForResult(intent, PickMods);
+    }
+
+    string DisplayName(Android.Net.Uri uri)
+    {
+        using var cursor = ContentResolver!.Query(uri, [Android.Provider.IOpenableColumns.DisplayName], null, null, null);
+        if (cursor != null && cursor.MoveToFirst()) return cursor.GetString(0) ?? "";
+        return uri.LastPathSegment ?? "";
+    }
+
+    void ImportMods(Intent data)
+    {
+        var uris = new List<Android.Net.Uri>();
+        if (data.ClipData is { } clip)
+            for (int i = 0; i < clip.ItemCount; i++) { if (clip.GetItemAt(i)?.Uri is { } u) uris.Add(u); }
+        else if (data.Data is { } single) uris.Add(single);
+        var names = uris.Select(DisplayName).ToList();
+        RunBusy("Добавление модов", () =>
+        {
+            Directory.CreateDirectory(Paths.SavesMods);
+            var added = new List<string>();
+            var skipped = new List<string>();
+            for (int i = 0; i < uris.Count; i++)
+            {
+                var name = Path.GetFileName(names[i]);
+                if (!name.EndsWith(".tmod", StringComparison.OrdinalIgnoreCase)) { skipped.Add(name); continue; }
+                using (var input = ContentResolver!.OpenInputStream(uris[i]) ?? throw new IOException("Не удалось открыть " + name))
+                using (var output = File.Create(Path.Combine(Paths.SavesMods, name)))
+                    input.CopyTo(output);
+                added.Add(Path.GetFileNameWithoutExtension(name));
+                HostLog.Info("mod added: " + name);
+            }
+            return (added.Count > 0 ? "Добавлено: " + string.Join(", ", added) + ". Включите их в игре в меню «Моды»." : "Ничего не добавлено.")
+                   + (skipped.Count > 0 ? "\nПропущено (не .tmod): " + string.Join(", ", skipped) : "");
+        });
     }
 
     void PickArchive()
@@ -105,6 +160,7 @@ public class MainActivity : Activity
     protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
     {
         base.OnActivityResult(requestCode, resultCode, data);
+        if (requestCode == PickMods && resultCode == Result.Ok && data != null) { ImportMods(data); return; }
         if (requestCode != PickZip || resultCode != Result.Ok || data?.Data is not { } uri) return;
         RunBusy("Импорт", () =>
         {
