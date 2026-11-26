@@ -65,6 +65,7 @@ public static unsafe class GameEntry
             HostLog.Info(MonoModAndroidFix.InstallNativeCompat(so, Path.Combine(Paths.NativeDir, "libmm_gcc_s_shim.so")));
         HostLog.Info(MonoModAndroidFix.SetHelperDropPath(Paths.MonoModHelperDir));
         HostLog.Info(MonoModAndroidFix.SpoofOsAsLinux());
+        HostLog.Info(DmdGenerator.Install());
 
         // 2. Process environment tModLoader expects (it was written for a desktop CWD and $HOME).
         Directory.CreateDirectory(Paths.Saves);

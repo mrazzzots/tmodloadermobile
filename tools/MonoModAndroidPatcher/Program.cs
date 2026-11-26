@@ -71,6 +71,21 @@ using (var asm = AssemblyDefinition.ReadAssembly(input, new ReaderParameters
         return 1;
     }
 
+    // .NET for Android runs the dotnet/runtime Mono, whose DynamicMethod keeps its handle in
+    // "_mhandle" (classic Mono: "mhandle"). Without it MonoRuntime.GetMethodHandle falls back to
+    // DynamicMethod.MethodHandle, which throws, so DynamicMethod-based DMDs could not be detoured.
+    foreach (var type in asm.MainModule.GetTypes())
+    foreach (var method in type.Methods)
+    {
+        if (!method.HasBody || !type.FullName.EndsWith(".MonoRuntime", StringComparison.Ordinal)) continue;
+        foreach (var ins in method.Body.Instructions)
+            if (ins.OpCode.Code == Code.Ldstr && (string)ins.Operand == "mhandle")
+            {
+                ins.Operand = "_mhandle";
+                Console.WriteLine($"  {type.FullName}::{method.Name}  \"mhandle\" -> \"_mhandle\"");
+            }
+    }
+
     Directory.CreateDirectory(Path.GetDirectoryName(output)!);
     asm.Write(output);
 }
