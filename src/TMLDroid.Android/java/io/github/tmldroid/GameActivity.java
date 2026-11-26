@@ -108,7 +108,16 @@ public class GameActivity extends SDLActivity {
     @Override
     protected void onDestroy() {
         controls = null;
+        boolean finishing = isFinishing();
         super.onDestroy();
+        // tModLoader cannot start twice in one process (static state, native resolvers, hooks).
+        // Once the game has ended, end the process too: Android restarts the launcher screen in a
+        // fresh process, and the next "Play" gets a clean runtime.
+        if (finishing) {
+            android.util.Log.i("TMLDroid", "game finished: ending process for a clean next launch");
+            new Handler(Looper.getMainLooper()).postDelayed(
+                () -> android.os.Process.killProcess(android.os.Process.myPid()), 300);
+        }
     }
 
     /** Back button = Escape (close menus / inventory), as Terraria knows no "back" key. */

@@ -13,6 +13,18 @@ public static class GameState
 {
     const int CmdMenu = 1, CmdZoomIn = 2, CmdZoomOut = 3;
 
+    static long RssMb()
+    {
+        try
+        {
+            foreach (var line in File.ReadLines("/proc/self/status"))
+                if (line.StartsWith("VmRSS:", StringComparison.Ordinal))
+                    return long.Parse(line.Split(' ', StringSplitOptions.RemoveEmptyEntries)[1]) >> 10;
+        }
+        catch { }
+        return -1;
+    }
+
     public static void StartWatching(Assembly tml)
     {
         // Reading Main.* would run Main's (huge, order-sensitive) static constructor on this thread
@@ -23,6 +35,7 @@ public static class GameState
         var gameMenu = main?.GetField("gameMenu", BindingFlags.Public | BindingFlags.Static);
         var zoom = main?.GetField("GameZoomTarget", BindingFlags.Public | BindingFlags.Static);
         var queue = main?.GetMethod("QueueMainThreadAction", BindingFlags.Public | BindingFlags.Static, [typeof(Action)]);
+        var frameRate = main?.GetField("frameRate", BindingFlags.Public | BindingFlags.Static);
         var openOptions = tml.GetType("Terraria.IngameOptions")?.GetMethod("Open", BindingFlags.Public | BindingFlags.Static, Type.EmptyTypes);
         HostLog.Info($"GameState: loaded={loaded != null} gameMenu={gameMenu != null} zoom={zoom != null} queue={queue != null} options={openOptions != null}");
 
@@ -59,6 +72,8 @@ public static class GameState
 
                     if (++tick % 5 != 0 || gameMenu == null) continue;
                     var inGame = !(bool)gameMenu.GetValue(null)!;
+                    if (inGame && tick % 600 == 0) // every 30 s in a world
+                        HostLog.Info($"perf: {frameRate?.GetValue(null) ?? "?"} fps, RSS {RssMb()} MB, GC heap {GC.GetTotalMemory(false) >> 20} MB");
                     if (inGame == last) continue;
                     Notify(inGame);
                     last = inGame;
