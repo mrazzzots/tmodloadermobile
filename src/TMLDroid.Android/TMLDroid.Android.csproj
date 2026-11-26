@@ -49,6 +49,9 @@
   <ItemGroup>
     <PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.2" />
     <PackageReference Include="Mono.Cecil" Version="0.11.6" />
+    <!-- MIT. Same version tML 2026.09 ships (assembly 1.0.0.0); bundled so the default context finds a
+         known-good copy (the one from the user's Libraries/ failed to load on Mono: "Invalid Image"). -->
+    <PackageReference Include="Steamworks.NET.AnyCPU" Version="2025.162.4" />
   </ItemGroup>
 
   <ItemGroup>

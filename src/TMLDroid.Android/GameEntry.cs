@@ -92,6 +92,7 @@ public static unsafe class GameEntry
             program.GetProperty(name, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)?
                 .GetSetMethod(nonPublic: true)?.Invoke(null, [Paths.Saves]);
         HostLog.Info("Program.SavePath/SavePathShared preset to " + Paths.Saves);
+        HostLog.Info("bundled " + typeof(Steamworks.SteamAPI).Assembly.FullName);
 
         string[] args = ["-tmlsavedirectory", Paths.Saves, "-savedirectory", Paths.Saves];
         HostLog.Info("MonoLaunch.Main " + string.Join(' ', args));

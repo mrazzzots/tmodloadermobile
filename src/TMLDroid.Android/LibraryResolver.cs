@@ -23,7 +23,18 @@ public static class LibraryResolver
         {
             if (name.Name == null || !index.TryGetValue(name.Name, out var path)) return null;
             HostLog.Info($"resolve {name.Name} {name.Version} -> {Path.GetRelativePath(librariesDir, path)}");
-            return context.LoadFromAssemblyPath(path);
+            try
+            {
+                return context.LoadFromAssemblyPath(path);
+            }
+            catch (BadImageFormatException e)
+            {
+                var fi = new FileInfo(path);
+                var head = new byte[Math.Min(4, (int)fi.Length)];
+                using (var f = File.OpenRead(path)) f.ReadExactly(head);
+                HostLog.Info($"  {name.Name}: {e.Message} (size {fi.Length}, head {Convert.ToHexString(head)}); trying bytes");
+                return context.LoadFromStream(new MemoryStream(File.ReadAllBytes(path)));
+            }
         };
     }
 
