@@ -96,6 +96,22 @@ public static class Shell
     }
 }
 
+/// <summary>UIMemoryBar.GetTotalMemory(): Mono's GC.GetGCMemoryInfo() reports heap size, not RAM.</summary>
+public static class Memory
+{
+    public static long TotalInstalled()
+    {
+        try
+        {
+            foreach (var line in File.ReadLines("/proc/meminfo"))
+                if (line.StartsWith("MemTotal:"))
+                    return long.Parse(line.Split(' ', StringSplitOptions.RemoveEmptyEntries)[1]) * 1024;
+        }
+        catch { }
+        return GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
+    }
+}
+
 /// <summary>Replaces Terraria.ModLoader.Engine.InstallVerifier.Startup().</summary>
 public static class Install
 {
