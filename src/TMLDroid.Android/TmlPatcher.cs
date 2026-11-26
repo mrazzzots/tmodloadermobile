@@ -13,7 +13,7 @@ namespace TMLDroid;
 /// </summary>
 public static class TmlPatcher
 {
-    public const int PatchVersion = 8;
+    public const int PatchVersion = 9;
 
     public sealed record Report(string File, int OsCalls, bool InstallVerifier);
 
@@ -30,6 +30,7 @@ public static class TmlPatcher
 
         int osCalls = 0;
         int hooks = 0;
+        int metadataCalls = 0;
         bool installPatched = false;
         using (var asm = AssemblyDefinition.ReadAssembly(orig, new ReaderParameters
                {
@@ -52,6 +53,7 @@ public static class TmlPatcher
             var setBg = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.SetBackgroundColor))!);
             var shellStart1 = module.ImportReference(typeof(Compat.Shell).GetMethod(nameof(Compat.Shell.Start), [typeof(string)])!);
             var shellStart2 = module.ImportReference(typeof(Compat.Shell).GetMethod(nameof(Compat.Shell.Start), [typeof(string), typeof(string)])!);
+            var metadataLoad = module.ImportReference(typeof(Compat.Metadata).GetMethod(nameof(Compat.Metadata.LoadPath))!);
             var resetColor = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.ResetColor))!);
 
             foreach (var type in module.GetTypes())
@@ -73,6 +75,14 @@ public static class TmlPatcher
                         continue;
                     }
                     if (ins.OpCode.Code is not (Code.Call or Code.Callvirt) || ins.Operand is not MethodReference callee) continue;
+                    if (callee.Name == "LoadFromAssemblyPath" && callee.DeclaringType.FullName == "System.Reflection.MetadataLoadContext"
+                        && type.FullName.StartsWith("Terraria.ModLoader.Core.AssemblyManager", StringComparison.Ordinal))
+                    {
+                        ins.OpCode = OpCodes.Call;
+                        ins.Operand = metadataLoad;
+                        metadataCalls++;
+                        continue;
+                    }
                     var declaring = callee.DeclaringType.FullName;
                     MethodReference? replacement = (declaring, callee.Name, callee.Parameters.Count) switch
                     {
@@ -140,7 +150,7 @@ public static class TmlPatcher
             asm.Write(path);
         }
 
-        log($"patched {Path.GetFileName(path)}: {osCalls} calls rewritten (OS checks, GetEntryAssembly, console colours), {hooks} tML hooks made optional{(installPatched ? ", InstallVerifier.Startup replaced" : "")}");
+        log($"patched {Path.GetFileName(path)}: {osCalls} calls rewritten (OS checks, GetEntryAssembly, console colours), {hooks} tML hooks made optional, {metadataCalls} metadata loads redirected{(installPatched ? ", InstallVerifier.Startup replaced" : "")}");
         return new(path, osCalls, installPatched);
     }
 }

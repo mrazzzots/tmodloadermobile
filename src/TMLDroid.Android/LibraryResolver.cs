@@ -13,6 +13,8 @@ public static class LibraryResolver
     static Dictionary<string, string> index = new(StringComparer.OrdinalIgnoreCase);
     static bool installed;
 
+    public static string? TryGetPath(string assemblyName) => index.GetValueOrDefault(assemblyName);
+
     public static void Install(string librariesDir)
     {
         index = BuildIndex(librariesDir);

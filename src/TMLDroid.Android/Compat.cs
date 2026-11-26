@@ -112,6 +112,56 @@ public static class Memory
     }
 }
 
+/// <summary>
+/// tModLoader inspects mod assemblies with a MetadataLoadContext and resolves their references via
+/// the running assembly's Location. On Android the BCL and the APK's own assemblies live in the
+/// assembly store, so Location is a bare name ("mscorlib") and not a file. Fall back to tML's
+/// Libraries/ folder, then to the .NET 8 reference pack tML ships for compiling mods.
+/// Replaces MetadataLoadContext.LoadFromAssemblyPath(string) in ModLoadContext.MetadataResolver.
+/// </summary>
+public static class Metadata
+{
+    static Dictionary<string, byte[]>? refPack;
+    static readonly object gate = new();
+
+    public static Assembly LoadPath(object context, string location)
+    {
+        var type = context.GetType();
+        if (Path.IsPathRooted(location) && File.Exists(location))
+            return (Assembly)type.GetMethod("LoadFromAssemblyPath", [typeof(string)])!.Invoke(context, [location])!;
+
+        var name = Path.GetFileNameWithoutExtension(location);
+        if (LibraryResolver.TryGetPath(name) is { } lib)
+            return (Assembly)type.GetMethod("LoadFromAssemblyPath", [typeof(string)])!.Invoke(context, [lib])!;
+
+        if (RefPack().TryGetValue(name, out var bytes))
+            return (Assembly)type.GetMethod("LoadFromByteArray", [typeof(byte[])])!.Invoke(context, [bytes])!;
+
+        HostLog.Info($"metadata: cannot find {name} (location '{location}')");
+        throw new FileNotFoundException("Reference assembly not found on Android: " + name, location);
+    }
+
+    static Dictionary<string, byte[]> RefPack()
+    {
+        lock (gate)
+        {
+            if (refPack != null) return refPack;
+            refPack = new(StringComparer.OrdinalIgnoreCase);
+            var pack = Directory.EnumerateFiles(Paths.Libraries, "Basic.Reference.Assemblies.Net80.dll", SearchOption.AllDirectories).FirstOrDefault();
+            if (pack == null) { HostLog.Info("metadata: reference pack not found"); return refPack; }
+            using var asm = Mono.Cecil.AssemblyDefinition.ReadAssembly(pack);
+            foreach (var r in asm.MainModule.Resources.OfType<Mono.Cecil.EmbeddedResource>())
+            {
+                var key = r.Name.StartsWith("net80.", StringComparison.OrdinalIgnoreCase) ? r.Name["net80.".Length..] : r.Name;
+                if (key.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) key = key[..^4];
+                refPack[key] = r.GetResourceData();
+            }
+            HostLog.Info($"metadata: reference pack with {refPack.Count} assemblies");
+            return refPack;
+        }
+    }
+}
+
 /// <summary>Replaces Terraria.ModLoader.Engine.InstallVerifier.Startup().</summary>
 public static class Install
 {
