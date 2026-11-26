@@ -32,6 +32,7 @@ public static class TmlPatcher
         int hooks = 0;
         int metadataCalls = 0;
         int modLoads = 0;
+        int widened = 0;
         bool installPatched = false;
         using (var asm = AssemblyDefinition.ReadAssembly(orig, new ReaderParameters
                {
@@ -58,7 +59,7 @@ public static class TmlPatcher
             var modLoad = module.ImportReference(typeof(Compat.ModAssemblies).GetMethod(nameof(Compat.ModAssemblies.LoadStream))!);
             var resetColor = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.ResetColor))!);
 
-            var widened = WidenProtected(module);
+            widened = WidenProtected(module);
 
             foreach (var type in module.GetTypes())
             foreach (var method in type.Methods)
