@@ -1,22 +1,21 @@
 package io.github.tmldroid;
 
-import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
-import android.util.TypedValue;
-import android.view.Gravity;
-import android.widget.RelativeLayout;
-import android.widget.TextView;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
+import android.view.ViewGroup;
 
 import org.libsdl.app.SDLActivity;
 
 /**
  * Hosts tModLoader. SDL loads libSDL2.so + libmain.so and calls SDL_main on its thread,
  * which jumps to TMLDroid.GameEntry.RunGame (published by TMLDroid.App).
- * Adds a small overlay button that shows/hides the on-screen keyboard (names, chat, search).
+ * On top of SDL's surface sits {@link TouchControls} (joystick, buttons, keyboard toggle).
  */
 public class GameActivity extends SDLActivity {
     private static native int nativeToggleKeyboard();
+
+    private static TouchControls controls;
 
     @Override
     protected String[] getLibraries() {
@@ -37,28 +36,43 @@ public class GameActivity extends SDLActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (mLayout == null) return;
-        TextView kb = new TextView(this);
-        kb.setText("⌨");
-        kb.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
-        kb.setTextColor(Color.WHITE);
-        kb.setGravity(Gravity.CENTER);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0x66000000);
-        bg.setCornerRadius(dp(10));
-        kb.setBackground(bg);
-        kb.setAlpha(0.8f);
-        kb.setOnClickListener(v -> {
+        controls = new TouchControls(this, () -> {
             try { nativeToggleKeyboard(); } catch (Throwable ignored) { }
         });
-        int size = dp(44);
-        RelativeLayout.LayoutParams lp = new RelativeLayout.LayoutParams(size, size);
-        lp.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-        lp.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
-        lp.setMargins(0, 0, dp(16), dp(16));
-        mLayout.addView(kb, lp);
+        mLayout.addView(controls, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        if (mSurface != null) {
+            // keep SDL's own touch handling, but remember the last position for the right-click button
+            mSurface.setOnTouchListener((v, e) -> {
+                if (controls != null) controls.onGameTouch(e);
+                return mSurface.onTouch(v, e);
+            });
+        }
     }
 
-    private int dp(int v) {
-        return Math.round(v * getResources().getDisplayMetrics().density);
+    @Override
+    protected void onDestroy() {
+        controls = null;
+        super.onDestroy();
+    }
+
+    /** Back button = Escape (close menus / inventory), as Terraria knows no "back" key. */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
+                SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_ESCAPE);
+            else if (event.getAction() == KeyEvent.ACTION_UP)
+                SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_ESCAPE);
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    /** Called from managed code (TMLDroid.GameState) when Terraria enters or leaves a world. */
+    public static void setInGame(final boolean inGame) {
+        final SDLActivity activity = mSingleton;
+        final TouchControls c = controls;
+        if (activity == null || c == null) return;
+        activity.runOnUiThread(() -> c.setInGame(inGame));
     }
 }

@@ -116,6 +116,7 @@ public static unsafe class GameEntry
         }, GameThreadStackSize) { Name = "tML game", IsBackground = false };
         HostLog.Info($"game thread stack: {GameThreadStackSize / (1024 * 1024)} MB");
         game.Start();
+        GameState.StartWatching(tml);
         game.Join();
         failure?.Throw();
     }
