@@ -96,6 +96,22 @@ public static unsafe class GameEntry
 
         string[] args = ["-tmlsavedirectory", Paths.Saves, "-savedirectory", Paths.Saves];
         HostLog.Info("MonoLaunch.Main " + string.Join(' ', args));
-        main.Invoke(null, [args]);
+
+        // SDL's Java thread has a ~1 MB stack. Mono's JIT gives Terraria's giant methods
+        // (Main.Initialize, SetDefaults switches with thousands of locals) frames of 100+ KB,
+        // which overflowed it right after content setup (SIGSEGV, "stack pointer is not in a rw map").
+        // Run tModLoader on our own thread with a big stack; SDL attaches it to the JVM on demand.
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
+        var game = new Thread(() =>
+        {
+            try { main.Invoke(null, [args]); }
+            catch (Exception e) { failure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(e); }
+        }, GameThreadStackSize) { Name = "tML game", IsBackground = false };
+        HostLog.Info($"game thread stack: {GameThreadStackSize / (1024 * 1024)} MB");
+        game.Start();
+        game.Join();
+        failure?.Throw();
     }
+
+    const int GameThreadStackSize = 256 * 1024 * 1024;
 }
