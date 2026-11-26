@@ -227,7 +227,7 @@ public class MainActivity : Activity
     {
         var sb = new StringBuilder();
         sb.AppendLine($"TMLDroid {PackageManager!.GetPackageInfo(PackageName!, 0)!.VersionName} on {Build.Manufacturer} {Build.Model}, Android {Build.VERSION.Release}");
-        AppendTail(sb, "host.log", Paths.HostLog, 400);
+        AppendHostLog(sb);
         AppendTail(sb, "tModLoader client.log", Path.Combine(Paths.TmlLogs, "client.log"), 400);
         AppendTail(sb, "tModLoader Natives.log", Path.Combine(Paths.TmlLogs, "Natives.log"), 50);
         AppendExitReasons(sb);
@@ -285,11 +285,45 @@ public class MainActivity : Activity
             var process = Java.Lang.Runtime.GetRuntime()!.Exec(new[] { "logcat", "-d", "-t", "1500", "-v", "time" });
             using var reader = new StreamReader(process!.InputStream!);
             var lines = reader.ReadToEnd().Split('\n')
-                .Where(l => !l.Contains("Access denied finding property"))
-                .TakeLast(800);
+                .Where(l => !l.Contains("Access denied finding property") && !l.Contains("I/DOTNET")
+                            && !l.Contains("vart_") && !l.Contains("copying GC") && !l.Contains("vivo delay")
+                            && !l.Contains("monodroid-assembly") && !l.Contains("GC delay"))
+                .TakeLast(300);
             foreach (var l in lines) sb.AppendLine(l);
         }
         catch (Exception e) { sb.AppendLine("(ошибка: " + e.Message + ")"); }
+    }
+
+    /// <summary>
+    /// host.log, compacted so a whole session fits: stack traces are cut to their first frames
+    /// (tML prints the same 40-frame MonoMod trace dozens of times), then the last 1200 lines.
+    /// </summary>
+    static void AppendHostLog(StringBuilder sb)
+    {
+        sb.AppendLine().AppendLine("===== host.log =====");
+        try
+        {
+            if (!File.Exists(Paths.HostLog)) { sb.AppendLine("(нет файла)"); return; }
+            var kept = new List<string>();
+            int frames = 0, skipped = 0;
+            foreach (var line in File.ReadLines(Paths.HostLog))
+            {
+                var isFrame = line.TrimStart().StartsWith("at ") || line.Contains("]    at ");
+                if (isFrame)
+                {
+                    if (++frames > 8) { skipped++; continue; }
+                }
+                else
+                {
+                    if (skipped > 0) kept.Add($"      … {skipped} frames");
+                    frames = 0; skipped = 0;
+                }
+                kept.Add(line);
+            }
+            if (skipped > 0) kept.Add($"      … {skipped} frames");
+            foreach (var line in kept.Skip(Math.Max(0, kept.Count - 1200))) sb.AppendLine(line);
+        }
+        catch (Exception e) { sb.AppendLine("(ошибка чтения: " + e.Message + ")"); }
     }
 
     static void AppendTail(StringBuilder sb, string title, string path, int lines)

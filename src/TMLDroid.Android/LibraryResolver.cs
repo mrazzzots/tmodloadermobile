@@ -23,7 +23,16 @@ public static class LibraryResolver
         installed = true;
         AssemblyLoadContext.Default.Resolving += (context, name) =>
         {
-            if (name.Name == null || !index.TryGetValue(name.Name, out var path)) return null;
+            if (name.Name == null) return null;
+            // Mod assemblies live in tML's own load contexts (ModLoadContext, loaded from bytes).
+            // MonoMod on Mono emits hook trampolines into assemblies of the default context that
+            // reference the mod by name; CoreCLR never asks, Mono does. Hand out the loaded one.
+            if (FindLoaded(name.Name, context) is { } loaded)
+            {
+                HostLog.Info($"resolve {name.Name} -> already loaded in {AssemblyLoadContext.GetLoadContext(loaded)?.Name ?? "?"}");
+                return loaded;
+            }
+            if (!index.TryGetValue(name.Name, out var path)) return null;
             HostLog.Info($"resolve {name.Name} {name.Version} -> {Path.GetRelativePath(librariesDir, path)}");
             try
             {
@@ -38,6 +47,19 @@ public static class LibraryResolver
                 return context.LoadFromStream(new MemoryStream(File.ReadAllBytes(path)));
             }
         };
+    }
+
+    static Assembly? FindLoaded(string simpleName, AssemblyLoadContext requester)
+    {
+        Assembly? found = null;
+        foreach (var alc in AssemblyLoadContext.All)
+        {
+            if (alc == requester) continue;
+            foreach (var a in alc.Assemblies)
+                if (string.Equals(a.GetName().Name, simpleName, StringComparison.Ordinal))
+                    found = a; // last one wins: after a mod reload the newest context is last
+        }
+        return found;
     }
 
     /// <summary>name -> path; for duplicates the highest version folder wins (Libraries/name/version/...).</summary>
