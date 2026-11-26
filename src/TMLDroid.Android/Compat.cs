@@ -130,7 +130,10 @@ public static class Metadata
         if (Path.IsPathRooted(location) && File.Exists(location))
             return (Assembly)type.GetMethod("LoadFromAssemblyPath", [typeof(string)])!.Invoke(context, [location])!;
 
-        var name = Path.GetFileNameWithoutExtension(location);
+        // "System.Text.RegularExpressions" is a name, not "System.Text" + extension
+        var name = Path.GetFileName(location);
+        if (name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            name = name[..^4];
         if (LibraryResolver.TryGetPath(name) is { } lib)
             return (Assembly)type.GetMethod("LoadFromAssemblyPath", [typeof(string)])!.Invoke(context, [lib])!;
 

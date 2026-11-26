@@ -370,6 +370,7 @@ public class TouchControls extends FrameLayout {
         private float kx, ky;
         private int pointer = -1;
         private boolean pressed;
+        private float dirX = 1, dirY = 0; // last aim direction (kept while the knob is in the centre)
 
         AimStick(Context ctx) {
             super(ctx);
@@ -386,7 +387,6 @@ public class TouchControls extends FrameLayout {
             base.setStyle(Paint.Style.STROKE);
             base.setColor(0xB0FFB0A0);
             c.drawCircle(cx, cy, r - dp(1), base);
-            c.drawCircle(cx, cy, r * 0.25f, base); // dead zone
             c.drawCircle(cx + kx, cy + ky, r * 0.38f, knob);
         }
 
@@ -427,11 +427,14 @@ public class TouchControls extends FrameLayout {
             if (len > r) { dx = dx / len * r; dy = dy / len * r; len = r; }
             kx = dx; ky = dy;
             invalidate();
-            if (len < r * 0.25f) { release(); return; }
-            // cursor: from the screen centre (player) out to 40% of the screen height
+            // Holding the stick always attacks. Near the centre the last direction is kept
+            // (a tiny wobble of the thumb must not flip the aim); farther out the cursor follows.
+            if (len >= r * 0.15f) { dirX = dx / len; dirY = dy / len; }
             float sw = TouchControls.this.getWidth(), sh = TouchControls.this.getHeight();
-            float reach = sh * 0.40f * Math.min(1f, len / r * 1.2f);
-            float mx = sw / 2f + dx / len * reach, my = sh / 2f + dy / len * reach;
+            // cursor: from the screen centre (player) out to 40% of the screen height, never
+            // closer than ~6% so the item is used in front of the player, not on top of him
+            float reach = sh * Math.max(0.06f, 0.40f * Math.min(1f, len / r * 1.2f));
+            float mx = sw / 2f + dirX * reach, my = sh / 2f + dirY * reach;
             lastTouchX = mx; lastTouchY = my; // right-click button follows the aim too
             if (!pressed) {
                 pressed = true;
