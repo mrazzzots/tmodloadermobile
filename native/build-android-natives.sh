@@ -167,8 +167,10 @@ done
 shim="$OUT/libmm_gcc_s_shim.so"
 [[ "$("$READELF" -d "$shim" | sed -n 's/.*(SONAME).*\[\(.*\)\]/\1/p')" == "libgcc_s.so.1" ]] \
   || { echo "  ERROR: shim SONAME is not libgcc_s.so.1" >&2; status=1; }
+# read once: "readelf | grep -q" can fail under pipefail (grep exits early -> readelf SIGPIPE)
+shim_syms="$("$READELF" --dyn-syms "$shim")"
 for sym in _Unwind_RaiseException _Unwind_GetLanguageSpecificData _Unwind_SetIP _Unwind_SetGR __errno_location; do
-  "$READELF" --dyn-syms "$shim" | grep -qE " $sym\$" \
+  grep -qE " $sym\$" <<<"$shim_syms" \
     || { echo "  ERROR: shim does not export $sym" >&2; status=1; }
 done
 
