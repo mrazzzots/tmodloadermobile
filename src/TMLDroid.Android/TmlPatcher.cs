@@ -13,7 +13,7 @@ namespace TMLDroid;
 /// </summary>
 public static class TmlPatcher
 {
-    public const int PatchVersion = 5;
+    public const int PatchVersion = 6;
 
     public sealed record Report(string File, int OsCalls, bool InstallVerifier);
 
@@ -104,6 +104,20 @@ public static class TmlPatcher
                 il.Emit(OpCodes.Call, module.ImportReference(typeof(Compat.Install).GetMethod(nameof(Compat.Install.Startup))!));
                 il.Emit(OpCodes.Ret);
                 installPatched = true;
+
+                // Android shared storage (/storage/emulated, FUSE) is case-insensitive: File.Exists finds
+                // "NPC_517.xnb" while a case-sensitive EnumerateFileSystemInfos(name) returns nothing, so
+                // the casing fix-up crashes on First(). Lookups already work regardless of case: skip it.
+                var content = module.GetType("Terraria.ModLoader.Engine.TMLContentManager");
+                var fix = content?.Methods.FirstOrDefault(m => m.Name == "TryFixFileCasings");
+                if (fix != null)
+                {
+                    fix.Body.Instructions.Clear();
+                    fix.Body.ExceptionHandlers.Clear();
+                    fix.Body.Variables.Clear();
+                    fix.Body.GetILProcessor().Emit(OpCodes.Ret);
+                    log("TMLContentManager.TryFixFileCasings disabled (case-insensitive storage)");
+                }
             }
 
             asm.Write(path);
