@@ -53,9 +53,9 @@ public static class GameState
     {
         if (cls == IntPtr.Zero)
         {
-            var local = JNIEnv.FindClass("io/github/tmldroid/GameActivity");
-            cls = JNIEnv.NewGlobalRef(local);
-            JNIEnv.DeleteLocalRef(local);
+            // .NET for Android's JNIEnv.FindClass already returns a *global* reference
+            // (deleting it as a local one aborts the process: "Attempt to delete global reference").
+            cls = JNIEnv.FindClass("io/github/tmldroid/GameActivity");
             method = JNIEnv.GetStaticMethodID(cls, "setInGame", "(Z)V");
         }
         JNIEnv.CallStaticVoidMethod(cls, method, new JValue(inGame));
