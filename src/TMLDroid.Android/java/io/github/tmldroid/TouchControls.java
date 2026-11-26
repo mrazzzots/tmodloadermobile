@@ -33,8 +33,15 @@ import java.util.function.IntConsumer;
 @SuppressLint({"ViewConstructor", "ClickableViewAccessibility"})
 public class TouchControls extends FrameLayout {
     // Android MotionEvent constants understood by SDLActivity.onNativeMouse
-    private static final int MOUSE_ACTION_DOWN = 0, MOUSE_ACTION_UP = 1, MOUSE_ACTION_SCROLL = 8;
-    private static final int MOUSE_BUTTON_RIGHT = 2;
+    private static final int MOUSE_ACTION_DOWN = 0, MOUSE_ACTION_UP = 1, MOUSE_ACTION_MOVE = 2, MOUSE_ACTION_SCROLL = 8;
+    private static final int MOUSE_BUTTON_LEFT = 1, MOUSE_BUTTON_RIGHT = 2;
+    /** SDL derives which button changed from the full button state, so keep it for both sticks/buttons. */
+    private static int mouseState;
+
+    private static void mouseButton(int button, boolean down, float x, float y) {
+        if (down) mouseState |= button; else mouseState &= ~button;
+        SDLActivity.onNativeMouse(mouseState, down ? MOUSE_ACTION_DOWN : MOUSE_ACTION_UP, x, y, false);
+    }
 
     /** Commands for managed code (polled by TMLDroid.GameState). */
     public static final int CMD_MENU = 1, CMD_ZOOM_IN = 2, CMD_ZOOM_OUT = 3;
@@ -75,22 +82,23 @@ public class TouchControls extends FrameLayout {
 
         // ---- game controls: id, name, view, size dp, default centre (fraction of width, height) ----
         add(game, "stick", "Джойстик", new Joystick(ctx), 140, 0.11f, 0.72f);
-        add(game, "jump", "Прыжок", keyButton("Прыжок", KeyEvent.KEYCODE_SPACE, 13), 70, 0.925f, 0.80f);
-        add(game, "rmb", "ПКМ", mouseRightButton(), 52, 0.835f, 0.88f);
+        add(game, "aim", "Атака (ЛКМ)", new AimStick(ctx), 140, 0.80f, 0.70f);
+        add(game, "jump", "Прыжок", keyButton("Прыжок", KeyEvent.KEYCODE_SPACE, 12), 64, 0.935f, 0.84f);
+        add(game, "rmb", "ПКМ", mouseRightButton(), 50, 0.935f, 0.58f);
 
-        add(game, "hook", "Крюк", keyButton("Крюк", KeyEvent.KEYCODE_E, 10), 44, 0.64f, 0.66f);
-        add(game, "mount", "Маунт", keyButton("Маунт", KeyEvent.KEYCODE_R, 10), 44, 0.70f, 0.66f);
-        add(game, "heal", "Лечение", keyButton("Лечен.", KeyEvent.KEYCODE_H, 9), 44, 0.76f, 0.66f);
-        add(game, "mana", "Мана", keyButton("Мана", KeyEvent.KEYCODE_J, 10), 44, 0.82f, 0.66f);
-        add(game, "buff", "Баффы", keyButton("Баффы", KeyEvent.KEYCODE_B, 9), 44, 0.88f, 0.66f);
-
-        add(game, "prev", "Слот ◀", wheelButton("◀", 1), 40, 0.64f, 0.54f);
-        add(game, "next", "Слот ▶", wheelButton("▶", -1), 40, 0.70f, 0.54f);
-        add(game, "smart", "Умный курсор", keyButton("Умный\nкурсор", KeyEvent.KEYCODE_CTRL_LEFT, 8), 44, 0.76f, 0.54f);
-        add(game, "throw", "Выбросить", keyButton("Выбр.", KeyEvent.KEYCODE_T, 9), 44, 0.82f, 0.54f);
-
-        add(game, "inv", "Инвентарь", keyButton("Инвент.", KeyEvent.KEYCODE_ESCAPE, 9), 48, 0.965f, 0.45f);
-        add(game, "map", "Карта", keyButton("Карта", KeyEvent.KEYCODE_M, 9), 48, 0.965f, 0.57f);
+        // bottom row between the sticks
+        add(game, "hook", "Крюк", keyButton("Крюк", KeyEvent.KEYCODE_E, 10), 44, 0.26f, 0.92f);
+        add(game, "mount", "Маунт", keyButton("Маунт", KeyEvent.KEYCODE_R, 10), 44, 0.315f, 0.92f);
+        add(game, "heal", "Лечение", keyButton("Лечен.", KeyEvent.KEYCODE_H, 9), 44, 0.37f, 0.92f);
+        add(game, "mana", "Мана", keyButton("Мана", KeyEvent.KEYCODE_J, 10), 44, 0.425f, 0.92f);
+        add(game, "buff", "Баффы", keyButton("Баффы", KeyEvent.KEYCODE_B, 9), 44, 0.48f, 0.92f);
+        add(game, "inv", "Инвентарь", keyButton("Инвент.", KeyEvent.KEYCODE_ESCAPE, 9), 44, 0.535f, 0.92f);
+        add(game, "map", "Карта", keyButton("Карта", KeyEvent.KEYCODE_M, 9), 44, 0.59f, 0.92f);
+        add(game, "smart", "Умный курсор", keyButton("Умный\nкурсор", KeyEvent.KEYCODE_CTRL_LEFT, 8), 44, 0.645f, 0.92f);
+        // second row
+        add(game, "prev", "Слот ◀", wheelButton("\u25C0", 1), 40, 0.26f, 0.80f);
+        add(game, "next", "Слот ▶", wheelButton("\u25B6", -1), 40, 0.315f, 0.80f);
+        add(game, "throw", "Выбросить", keyButton("Выбр.", KeyEvent.KEYCODE_T, 9), 40, 0.37f, 0.80f);
 
         // ---- always visible, top centre ----
         add(meta, "menu", "Меню", actionButton("Меню", () -> command.accept(CMD_MENU), 10, false), 40, 0.40f, 0.06f);
@@ -299,12 +307,12 @@ public class TouchControls extends FrameLayout {
             float y = lastTouchY >= 0 ? lastTouchY : getHeight() / 2f;
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    SDLActivity.onNativeMouse(MOUSE_BUTTON_RIGHT, MOUSE_ACTION_DOWN, x, y, false);
+                    mouseButton(MOUSE_BUTTON_RIGHT, true, x, y);
                     v.setAlpha(1f);
                     break;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    SDLActivity.onNativeMouse(0, MOUSE_ACTION_UP, x, y, false);
+                    mouseButton(MOUSE_BUTTON_RIGHT, false, x, y);
                     v.setAlpha(opacity);
                     break;
             }
@@ -349,6 +357,95 @@ public class TouchControls extends FrameLayout {
 
     private int dp(float v) {
         return Math.round(v * getResources().getDisplayMetrics().density);
+    }
+
+    /**
+     * Attack stick, like Terraria mobile: the direction puts the cursor around the player (screen
+     * centre, the camera follows the player) and holding it past the dead zone holds the left mouse
+     * button, so the selected item is used / swung / fired in that direction.
+     */
+    private final class AimStick extends View {
+        private final Paint base = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint knob = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private float kx, ky;
+        private int pointer = -1;
+        private boolean pressed;
+
+        AimStick(Context ctx) {
+            super(ctx);
+            base.setStrokeWidth(dp(1));
+            knob.setColor(0xB0FF7060);
+        }
+
+        @Override
+        protected void onDraw(Canvas c) {
+            float cx = getWidth() / 2f, cy = getHeight() / 2f, r = Math.min(cx, cy);
+            base.setStyle(Paint.Style.FILL);
+            base.setColor(pressed ? 0x60802020 : 0x60000000);
+            c.drawCircle(cx, cy, r, base);
+            base.setStyle(Paint.Style.STROKE);
+            base.setColor(0xB0FFB0A0);
+            c.drawCircle(cx, cy, r - dp(1), base);
+            c.drawCircle(cx, cy, r * 0.25f, base); // dead zone
+            c.drawCircle(cx + kx, cy + ky, r * 0.38f, knob);
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent e) {
+            if (editTouch(this, e)) return true;
+            switch (e.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                case MotionEvent.ACTION_POINTER_DOWN:
+                    if (pointer == -1) {
+                        pointer = e.getPointerId(e.getActionIndex());
+                        move(e.getX(e.getActionIndex()), e.getY(e.getActionIndex()));
+                    }
+                    return true;
+                case MotionEvent.ACTION_MOVE: {
+                    int i = e.findPointerIndex(pointer);
+                    if (i >= 0) move(e.getX(i), e.getY(i));
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_POINTER_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (e.getActionMasked() == MotionEvent.ACTION_CANCEL || e.getPointerId(e.getActionIndex()) == pointer) {
+                        pointer = -1;
+                        release();
+                        kx = ky = 0;
+                        invalidate();
+                    }
+                    return true;
+            }
+            return true;
+        }
+
+        private void move(float x, float y) {
+            float cx = getWidth() / 2f, cy = getHeight() / 2f, r = Math.min(cx, cy);
+            float dx = x - cx, dy = y - cy;
+            float len = (float) Math.hypot(dx, dy);
+            if (len > r) { dx = dx / len * r; dy = dy / len * r; len = r; }
+            kx = dx; ky = dy;
+            invalidate();
+            if (len < r * 0.25f) { release(); return; }
+            // cursor: from the screen centre (player) out to 40% of the screen height
+            float sw = TouchControls.this.getWidth(), sh = TouchControls.this.getHeight();
+            float reach = sh * 0.40f * Math.min(1f, len / r * 1.2f);
+            float mx = sw / 2f + dx / len * reach, my = sh / 2f + dy / len * reach;
+            lastTouchX = mx; lastTouchY = my; // right-click button follows the aim too
+            if (!pressed) {
+                pressed = true;
+                mouseButton(MOUSE_BUTTON_LEFT, true, mx, my);
+            } else {
+                SDLActivity.onNativeMouse(mouseState, MOUSE_ACTION_MOVE, mx, my, false);
+            }
+        }
+
+        private void release() {
+            if (!pressed) return;
+            pressed = false;
+            mouseButton(MOUSE_BUTTON_LEFT, false, lastTouchX, lastTouchY);
+        }
     }
 
     /** Virtual stick: holds A/D for left/right, W/S for up/down (ropes, platforms). */

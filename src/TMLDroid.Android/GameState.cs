@@ -39,23 +39,22 @@ public static class GameState
 
                     for (int cmd = Poll(); cmd != 0; cmd = Poll())
                     {
-                        if (queue == null) break;
-                        Action action = cmd switch
+                        if (cmd is CmdZoomIn or CmdZoomOut)
                         {
-                            CmdMenu => () =>
-                            {
-                                if (gameMenu != null && (bool)gameMenu.GetValue(null)!) return; // already in the main menu
-                                openOptions?.Invoke(null, null);
-                            },
-                            CmdZoomIn or CmdZoomOut => () =>
-                            {
-                                if (zoom == null) return;
-                                var z = (float)zoom.GetValue(null)! + (cmd == CmdZoomIn ? 0.1f : -0.1f);
-                                zoom.SetValue(null, Math.Clamp(z, 1f, 2f));
-                            },
-                            _ => () => { },
-                        };
-                        queue.Invoke(null, [action]);
+                            // a float store: safe from this thread, no need to wait for the game loop
+                            if (zoom == null) { HostLog.Info("zoom: Main.GameZoomTarget not found"); continue; }
+                            var before = (float)zoom.GetValue(null)!;
+                            var z = Math.Clamp(before + (cmd == CmdZoomIn ? 0.1f : -0.1f), 1f, 2f);
+                            zoom.SetValue(null, z);
+                            HostLog.Info($"zoom: {before:0.00} -> {z:0.00}");
+                        }
+                        else if (cmd == CmdMenu)
+                        {
+                            if (gameMenu != null && (bool)gameMenu.GetValue(null)!) continue; // already in the main menu
+                            Action open = () => openOptions?.Invoke(null, null);
+                            if (queue != null) queue.Invoke(null, [open]); else open();
+                            HostLog.Info("menu: IngameOptions.Open" + (queue != null ? " (queued)" : " (direct)"));
+                        }
                     }
 
                     if (++tick % 5 != 0 || gameMenu == null) continue;
