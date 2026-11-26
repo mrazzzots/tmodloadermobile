@@ -67,6 +67,35 @@ public static class ConsoleCompat
     public static void ResetColor() { try { Console.ResetColor(); } catch (PlatformNotSupportedException) { } }
 }
 
+/// <summary>
+/// Process.Start(file, args) / Process.Start(file) in tModLoader: there are no xdg-open/explorer
+/// binaries on Android. URLs go to an ACTION_VIEW intent; anything else is logged and skipped.
+/// </summary>
+public static class Shell
+{
+    public static System.Diagnostics.Process? Start(string fileName) => Start(fileName, "");
+
+    public static System.Diagnostics.Process? Start(string fileName, string arguments)
+    {
+        var target = (arguments ?? "").Trim().Trim('"');
+        if (target.Length == 0) target = fileName.Trim('"');
+        if (target.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || target.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var intent = new Android.Content.Intent(Android.Content.Intent.ActionView, Android.Net.Uri.Parse(target));
+                intent.AddFlags(Android.Content.ActivityFlags.NewTask);
+                Android.App.Application.Context.StartActivity(intent);
+                HostLog.Info("opened URL: " + target);
+            }
+            catch (Exception e) { HostLog.Info($"cannot open URL {target}: {e.Message}"); }
+            return null;
+        }
+        HostLog.Info($"Process.Start skipped on Android: {fileName} {arguments}");
+        return null;
+    }
+}
+
 /// <summary>Replaces Terraria.ModLoader.Engine.InstallVerifier.Startup().</summary>
 public static class Install
 {

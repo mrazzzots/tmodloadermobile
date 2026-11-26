@@ -76,6 +76,10 @@ public static unsafe class GameEntry
         // Android backend, OpenSL ES, allows only one ("Audio device already open"); AAudio allows many.
         SetEnv("SDL_AUDIODRIVER", "aaudio,openslES");
         SetEnv("TMPDIR", Paths.InternalCache); // natives written to temp may be dlopen'ed
+        // SDL picks the activity orientation from the window size; Terraria briefly sets 720x800,
+        // which turned the screen to portrait (and broke touch coordinates). Landscape only.
+        SetEnv("SDL_IOS_ORIENTATIONS", "LandscapeLeft LandscapeRight");
+        try { GameConfig.Apply(Paths.Saves); } catch (Exception e) { HostLog.Info("config.json: " + e.Message); }
 
         // 3. Managed dependencies from Libraries/.
         LibraryResolver.Install(Paths.Libraries);

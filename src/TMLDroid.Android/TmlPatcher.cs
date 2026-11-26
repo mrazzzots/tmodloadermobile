@@ -13,7 +13,7 @@ namespace TMLDroid;
 /// </summary>
 public static class TmlPatcher
 {
-    public const int PatchVersion = 6;
+    public const int PatchVersion = 7;
 
     public sealed record Report(string File, int OsCalls, bool InstallVerifier);
 
@@ -50,6 +50,8 @@ public static class TmlPatcher
             var newHook = module.ImportReference(typeof(Compat.Hooks).GetMethod(nameof(Compat.Hooks.NewHook))!);
             var setFg = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.SetForegroundColor))!);
             var setBg = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.SetBackgroundColor))!);
+            var shellStart1 = module.ImportReference(typeof(Compat.Shell).GetMethod(nameof(Compat.Shell.Start), [typeof(string)])!);
+            var shellStart2 = module.ImportReference(typeof(Compat.Shell).GetMethod(nameof(Compat.Shell.Start), [typeof(string), typeof(string)])!);
             var resetColor = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.ResetColor))!);
 
             foreach (var type in module.GetTypes())
@@ -81,6 +83,8 @@ public static class TmlPatcher
                         ("System.Console", "set_ForegroundColor", 1) => setFg,
                         ("System.Console", "set_BackgroundColor", 1) => setBg,
                         ("System.Console", "ResetColor", 0) => resetColor,
+                        ("System.Diagnostics.Process", "Start", 1) when callee.Parameters[0].ParameterType.FullName == "System.String" => shellStart1,
+                        ("System.Diagnostics.Process", "Start", 2) when callee.Parameters[1].ParameterType.FullName == "System.String" => shellStart2,
                         _ => null,
                     };
                     if (replacement == null) continue;
