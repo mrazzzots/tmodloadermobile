@@ -13,13 +13,13 @@ namespace TMLDroid;
 /// </summary>
 public static class TmlPatcher
 {
-    public const int PatchVersion = 10;
+    public const int PatchVersion = 11;
 
     public sealed record Report(string File, int OsCalls, bool InstallVerifier);
 
     // Calls rewritten below: OS checks (Android counts as Linux) and Assembly.GetEntryAssembly().
 
-    public static Report Patch(string path, string librariesDir, bool patchInstallVerifier, Action<string> log)
+    public static Report Patch(string path, string librariesDir, bool patchInstallVerifier, Action<string> log, bool rewriteCalls = true)
     {
         var orig = path + ".orig";
         if (!File.Exists(orig))
@@ -58,10 +58,12 @@ public static class TmlPatcher
             var modLoad = module.ImportReference(typeof(Compat.ModAssemblies).GetMethod(nameof(Compat.ModAssemblies.LoadStream))!);
             var resetColor = module.ImportReference(typeof(Compat.ConsoleCompat).GetMethod(nameof(Compat.ConsoleCompat.ResetColor))!);
 
+            var widened = WidenProtected(module);
+
             foreach (var type in module.GetTypes())
             foreach (var method in type.Methods)
             {
-                if (!method.HasBody) continue;
+                if (!rewriteCalls || !method.HasBody) continue;
                 foreach (var ins in method.Body.Instructions)
                 {
                     // new Hook(MethodBase, Delegate) in tML's own code -> Compat.Hooks.NewHook (mods' hooks stay strict)
@@ -161,7 +163,53 @@ public static class TmlPatcher
             asm.Write(path);
         }
 
-        log($"patched {Path.GetFileName(path)}: {osCalls} calls rewritten (OS checks, GetEntryAssembly, console colours), {hooks} tML hooks made optional, {metadataCalls} metadata loads redirected, {modLoads} mod loads routed{(installPatched ? ", InstallVerifier.Startup replaced" : "")}");
+        log($"patched {Path.GetFileName(path)}: {osCalls} calls rewritten (OS checks, GetEntryAssembly, console colours), {hooks} tML hooks made optional, {metadataCalls} metadata loads redirected, {modLoads} mod loads routed{(installPatched ? ", InstallVerifier.Startup replaced" : "")}, {widened} protected members widened");
         return new(path, osCalls, installPatched);
+    }
+
+    /// <summary>
+    /// Mods compiled against a publicized tML/FNA/ReLogic (Calamity) read protected members from
+    /// unrelated classes and rely on [IgnoresAccessChecksTo]. Mono honours that attribute for
+    /// private/internal members but not for protected ("family") ones, so e.g.
+    /// AWorldListItem._data throws FieldAccessException. protected -> protected internal (and
+    /// private protected -> protected internal) routes the check through the internal-access path,
+    /// which does honour the attribute. Virtual methods are left alone (override visibility).
+    /// Reflection still sees these members as non-public.
+    /// </summary>
+    static int WidenProtected(ModuleDefinition module)
+    {
+        int n = 0;
+        foreach (var type in module.GetTypes())
+        {
+            if (type.IsNested)
+            {
+                var vis = type.Attributes & TypeAttributes.VisibilityMask;
+                if (vis is TypeAttributes.NestedFamily or TypeAttributes.NestedFamANDAssem)
+                {
+                    type.Attributes = (type.Attributes & ~TypeAttributes.VisibilityMask) | TypeAttributes.NestedFamORAssem;
+                    n++;
+                }
+            }
+            foreach (var f in type.Fields)
+            {
+                var a = f.Attributes & FieldAttributes.FieldAccessMask;
+                if (a is FieldAttributes.Family or FieldAttributes.FamANDAssem)
+                {
+                    f.Attributes = (f.Attributes & ~FieldAttributes.FieldAccessMask) | FieldAttributes.FamORAssem;
+                    n++;
+                }
+            }
+            foreach (var m in type.Methods)
+            {
+                if (m.IsVirtual) continue;
+                var a = m.Attributes & MethodAttributes.MemberAccessMask;
+                if (a is MethodAttributes.Family or MethodAttributes.FamANDAssem)
+                {
+                    m.Attributes = (m.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.FamORAssem;
+                    n++;
+                }
+            }
+        }
+        return n;
     }
 }

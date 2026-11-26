@@ -114,6 +114,10 @@ public static class Importer
         var relogic = Directory.EnumerateFiles(Path.Combine(Paths.Libraries, "ReLogic"), "ReLogic.dll", SearchOption.AllDirectories).FirstOrDefault();
         if (relogic != null)
             TmlPatcher.Patch(relogic, Paths.Libraries, patchInstallVerifier: false, HostLog.Info);
+        // FNA: only the protected-member widening (publicized mods read FNA's protected members too)
+        var fna = Directory.EnumerateFiles(Paths.Libraries, "FNA.dll", SearchOption.AllDirectories).FirstOrDefault();
+        if (fna != null)
+            TmlPatcher.Patch(fna, Paths.Libraries, patchInstallVerifier: false, HostLog.Info, rewriteCalls: false);
     }
 
     /// <summary>Re-applies the current patch set (from the *.orig files) after an app update.</summary>
