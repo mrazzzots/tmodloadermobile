@@ -16,7 +16,7 @@ namespace TMLDroid.Compat;
 /// </summary>
 public static class ModAssemblies
 {
-    const int Version = 1;
+    const int Version = 2;
     const string AttrNs = "System.Runtime.CompilerServices", AttrName = "IgnoresAccessChecksToAttribute";
 
     public static Assembly LoadStream(AssemblyLoadContext context, Stream code, Stream? pdb)
@@ -30,7 +30,7 @@ public static class ModAssemblies
         }
         catch (Exception e)
         {
-            HostLog.Info($"mod asm: rewrite failed ({e.GetType().Name}: {e.Message}), loading original");
+            HostLog.Info($"mod asm: rewrite failed ({e.GetType().Name}: {e.Message}), loading original\n{e.StackTrace}");
             code.Position = 0;
             if (pdb != null) pdb.Position = 0;
             return context.LoadFromStream(code, pdb);
@@ -50,13 +50,17 @@ public static class ModAssemblies
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var pdbBytes = pdb != null ? ReadAll(pdb) : null;
+        // Writing re-encodes constants and attribute arguments, which needs enum types
+        // (FNA's SpriteEffects, ...) resolved: tML dir, Libraries and the BCL reference pack.
+        using var resolver = new RefAssemblyResolver(Paths.Libraries, HostLog.Info);
+        resolver.AddSearchDirectory(Paths.TModLoader);
         AssemblyDefinition asm;
         bool symbols = pdbBytes != null;
-        try { asm = Read(bytes, pdbBytes); }
+        try { asm = Read(bytes, pdbBytes, resolver); }
         catch (Exception e) when (pdbBytes != null)
         {
             HostLog.Info($"mod asm: symbols unreadable ({e.Message}), dropping pdb");
-            asm = Read(bytes, null);
+            asm = Read(bytes, null, resolver);
             symbols = false;
         }
 
@@ -106,9 +110,9 @@ public static class ModAssemblies
         return (dll, symbols ? pdbOut : null);
     }
 
-    static AssemblyDefinition Read(byte[] bytes, byte[]? pdb)
+    static AssemblyDefinition Read(byte[] bytes, byte[]? pdb, IAssemblyResolver resolver)
     {
-        var rp = new ReaderParameters { ReadingMode = ReadingMode.Deferred, InMemory = true, AssemblyResolver = new NullResolver() };
+        var rp = new ReaderParameters { ReadingMode = ReadingMode.Deferred, InMemory = true, AssemblyResolver = resolver };
         if (pdb != null)
         {
             rp.ReadSymbols = true;
@@ -152,12 +156,5 @@ public static class ModAssemblies
         var ms = new MemoryStream();
         s.CopyTo(ms);
         return ms.ToArray();
-    }
-
-    sealed class NullResolver : IAssemblyResolver
-    {
-        public AssemblyDefinition? Resolve(AssemblyNameReference name) => null;
-        public AssemblyDefinition? Resolve(AssemblyNameReference name, ReaderParameters parameters) => null;
-        public void Dispose() { }
     }
 }
